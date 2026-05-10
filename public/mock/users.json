@@ -1,0 +1,26 @@
+[
+  {
+    "Usuario": "admin.estfruta",
+    "Clave": "admin123",
+    "Rol": "Administrador",
+    "Activo": true
+  },
+  {
+    "Usuario": "supervisor.estfruta",
+    "Clave": "super123",
+    "Rol": "Supervisor",
+    "Activo": true
+  },
+  {
+    "Usuario": "gerente.estfruta",
+    "Clave": "gerente123",
+    "Rol": "Gerente",
+    "Activo": true
+  },
+  {
+    "Usuario": "muestreador.estfruta",
+    "Clave": "muestra123",
+    "Rol": "Muestreador",
+    "Activo": true
+  }
+]
