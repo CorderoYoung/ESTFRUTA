@@ -12,6 +12,8 @@ import { ROLE_OPTIONS, ROLE_ROUTES } from './constants/roles';
 import LoginScreen from './components/auth/LoginScreen';
 import EstimationHeaderPage from './pages/EstimationHeaderPage';
 import EstimationSamplingPage from './pages/EstimationSamplingPage';
+import EstimationSamplingEditPage from './pages/EstimationSamplingEditPage';
+import PantallaConsultaEstFruta from './pages/PantallaConsultaEstFruta';
 import RoleHomePage from './pages/RoleHomePage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { authenticateUser, getActiveUsers } from './services/authService';
@@ -141,24 +143,65 @@ function AuthApp() {
 
       {ROLE_OPTIONS.map((role) => {
         const path = ROLE_ROUTES[role];
+
         return (
           <Route
             key={role}
-            element={<ProtectedRoute user={currentUser} allowedRoles={[role]} />}
+            element={
+              <ProtectedRoute
+                user={currentUser}
+                allowedRoles={[role]}
+              />
+            }
           >
             <Route
               path={path}
-              element={<RoleHomePage user={currentUser} onLogout={onExit} />}
+              element={
+                <Navigate
+                  to="/estimaciones/consulta"
+                  replace
+                />
+              }
             />
           </Route>
-        );
-      })}
+                  );
+                })}
 
-      <Route
-        element={
-          <ProtectedRoute user={currentUser} allowedRoles={[...ROLE_OPTIONS]} />
-        }
-      >
+                {ROLE_OPTIONS.map((role) => {
+            const path = ROLE_ROUTES[role];
+
+            return (
+              <Route
+                key={role}
+                element={
+                  <ProtectedRoute
+                    user={currentUser}
+                    allowedRoles={[role]}
+                  />
+                }
+              >
+                <Route
+                  path={path}
+                  element={
+                    <Navigate
+                      to="/estimaciones/consulta"
+                      replace
+                    />
+                  }
+                />
+              </Route>
+            );
+          })}
+
+          <Route
+            element={
+              <ProtectedRoute
+                user={currentUser}
+                allowedRoles={[...ROLE_OPTIONS]}
+              />
+            }
+          >
+
         <Route
           path="/estimaciones/nueva"
           element={
@@ -168,6 +211,10 @@ function AuthApp() {
         <Route
           path="/estimaciones/muestreo"
           element={<EstimationSamplingPage />}
+        />
+        <Route
+          path="/estimaciones/editar/:id"
+          element={<EstimationSamplingEditPage />}
         />
       </Route>
 

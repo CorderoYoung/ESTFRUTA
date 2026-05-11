@@ -15,7 +15,7 @@ function SamplingCounterTile({
       <span className="sampling-tile__count" aria-live="polite">
         {count}
       </span>
-      <div className="sampling-tile__actions">
+      {/*<div className="sampling-tile__actions">
       <button
         type="button"
         className="sampling-tap sampling-tap--plus"
@@ -33,7 +33,7 @@ function SamplingCounterTile({
       >
         −
       </button>
-    </div>
+    </div>*/}
     </div>
   );
 }
