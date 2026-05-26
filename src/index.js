@@ -1,13 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import App from './App';
+import App from './AppTomaFisica';
+import { OfflineProvider } from './contexts/OfflineContext';
 import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <OfflineProvider>
+      <App />
+    </OfflineProvider>
   </React.StrictMode>
 );
 

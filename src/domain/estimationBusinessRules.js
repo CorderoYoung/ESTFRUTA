@@ -10,16 +10,19 @@ function trimPart(value) {
   return String(value).trim();
 }
 
-/*
- * GF = Forza + "-" + Semana (valores tal cual en texto, sin espacios extremos).
- * No es entrada manual.
- */
-export function deriveGF(forza, semana) {
-  const f = trimPart(forza);
-  const s = trimPart(semana);
+
+export function deriveGf(forza, semana) {
+
+  const f = String(forza ?? '').trim();
+  const s = String(semana ?? '').trim();
+
   if (!f || !s) return '';
+
   return `${f}-${s}`;
+
 }
+
+
 
 /* Enteros para conteos operativos (rechaza decimales para guardado). */
 export function parseCount(value) {
@@ -38,8 +41,8 @@ export function sumDeltasByKey(detalleRows) {
   const map = {};
   if (!Array.isArray(detalleRows)) return map;
   for (const row of detalleRows) {
-    const tipo = trimPart(row?.tipoLinea);
-    const codigo = trimPart(row?.codigoClasificacion);
+    const tipo = String(row?.tipoLinea || '').trim();
+    const codigo = String(row?.codigoClasificacion || '').trim();
     const delta = Number(row?.cantidadDelta);
     if (!tipo || !codigo || !Number.isFinite(delta)) continue;
     const key = `${tipo}:${codigo}`;
@@ -102,36 +105,46 @@ export function canCreateEstimationRecord({
   frutasTotales,
 }) {
   return isFrutasTotalesEqualPtasMuestras(frutasTotales, ptasMuestras);
-}
-
-/**
+}/**
  * Validación para payload de creación (UI + API).
  * El servidor debe recalcular totales desde detalle y no confiar en totales del cliente.
- * @returns {{ ok: boolean, errors: string[], derivedGF: string, aggregates: object }}
+ * @returns {{ ok: boolean, errors: string[], derivedGf: string, aggregates: object }}
  */
 export function validateEstimationCreatePayload(payload) {
-  const errors = [];
-  const gf = deriveGF(payload?.Forza, payload?.Semana);
-  if (!gf) {
-    errors.push('Forza y Semana son obligatorios para calcular GF.');
-  }
 
-  const detalle = Array.isArray(payload?.detalle) ? payload.detalle : [];
+  const errors = [];
+
+  
+
+  const detalle = Array.isArray(payload?.detalle)
+    ? payload.detalle
+    : [];
+
   const aggregates = aggregateFrutasFromDetalle(detalle);
 
-  if (!canCreateEstimationRecord({
-    ptasMuestras: payload?.PtasMuestras,
-    frutasTotales: aggregates.frutasTotales,
-  })) {
+  // derived GF (forza-semana)
+  const derivedGF = deriveGf(payload?.Forza ?? payload?.forza, payload?.Semana ?? payload?.semana);
+
+  if (
+    Array.isArray(payload?.detalle) &&
+    payload.detalle.length > 0 &&
+    !canCreateEstimationRecord({
+      ptasMuestras: payload?.PtasMuestras,
+      frutasTotales: aggregates.frutasTotales,
+    })
+  ) {
     errors.push(
       'Frutas Totales (empacables + no empacables) debe ser igual a PtasMuestras.'
     );
   }
 
   return {
-    ok: errors.length === 0,
-    errors,
-    derivedGF: gf,
-    aggregates,
-  };
+  ok: errors.length === 0,
+  errors,
+  aggregates,
+  derivedGF,
+        };
 }
+
+
+

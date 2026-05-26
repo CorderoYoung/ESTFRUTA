@@ -12,25 +12,25 @@ export const FRUIT_SIZE_CODES = Object.freeze([
 
 /** Clasificaciones de rechazo frecuentes (alineado a Power Apps / Excel). */
 export const DEFECT_CODES = Object.freeze([
-  'Muerta',
-  'Forza2',
-  'Enferma',
-  'Pequena',
+  'Muert',
+  'Forza',
+  'Enfer',
+  'Peque',
   'NDF',
   'QSol',
-  'Conica',
+  'Conic',
   'Eriza',
-  'Sombra',
+  'Somb',
   'Cuello',
-  'Deforme',
-  'Quebrada',
-  'Cicatriz',
+  'Defor',
+  'Quebr',
+  'Cicatr',
   'Doble',
-  'Pequena3',
-  'Torcida',
-  'Roedor',
+  '+Pequ',
+  'Torcid',
+  'Roedo',
   'Tecla',
-  'Erphinia',
+  'Erphin',
 ]);
 
 export const TIPO_LINEA = Object.freeze({

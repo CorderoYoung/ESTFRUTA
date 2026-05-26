@@ -142,78 +142,6 @@
 
 
 
-.sampling-tile {
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 10px;
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: stretch;
-}
-
-.sampling-tile__label {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #333333;
-  text-align: center;
-  word-break: break-word;
-}
-
-.sampling-tile__count {
-  font-size: 1.35rem;
-  font-weight: 800;
-  text-align: center;
-  color: #c9171f;
-}
-
-.sampling-tile__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-
-  width: 100%;
-  margin-top: 1px;
-
-  align-items: center;
-}
-
-.sampling-tap {
-  width: 18px;
-  height: 12px;
-  min-height: 12px;
-
-  border: none;
-  border-radius: 4px;
-
-  font-size: 0.75rem;
-  font-weight: 700;
-
-  padding: 0;
-  line-height: 1;
-
-  cursor: pointer;
-}
-
-.sampling-tap--plus {
-  background: #1a7f37;
-  color: #ffffff;
-}
-
-.sampling-tap--minus {
-  background: #6b6b6b;
-  color: #ffffff;
-}
-
-.sampling-tap:hover {
-  filter: brightness(0.95);
-}
-
-.sampling-tap:active {
-  transform: translateY(1px);
-}
-
 .subtle-link {
   color: #c9171f;
   font-weight: 600;
@@ -586,30 +514,33 @@
 
 /* DEFECTOS FRUTAS NO EMPACABLES */
 .sampling-grid-defects {
-   display: grid;
-  grid-template-columns: repeat(8, 41px);
-  justify-content: center;
-  gap: 1px;
+  display: grid;
 
-  align-content: start;
-  overflow: hidden;
+  grid-template-columns: repeat(8, 41px);
+
+  justify-content: center;
+  align-items: start;
+
+  grid-auto-rows: auto;
+
+  gap: 1px;
+  margin-top: 12px;
 }
 
 .sampling-tile {
-  width: 41px;
-  height: 78px;
-
   border: 1px solid #e0e0e0;
-  border-radius: 10px;
-
+  border-radius: 12px;
+  padding: 10px;
   background: #ffffff;
 
   display: flex;
   flex-direction: column;
-  align-items: center;
+  gap: 6px;
 
-  padding: 4px;
-  box-sizing: border-box;
+  align-items: stretch;
+
+  min-height: 102px;
+  justify-content: space-between;
 }
 
 .sampling-tile--compact {
@@ -638,7 +569,7 @@
   text-align: center;
   color: #c9171f;
 
-  margin: 2px 0;
+  margin-top: 4px;
 }
 
 .sampling-tile__actions {
@@ -757,8 +688,14 @@
 .sampling-grid-sizes,
 .sampling-grid-defects {
   display: grid;
+
   grid-template-columns: repeat(8, 41px);
+
   justify-content: center;
+  align-items: start;
+
+  grid-auto-rows: auto;
+ 
   gap: 1px;
 }
 
@@ -814,44 +751,79 @@
   margin: 8px 0;
 }
 
-/* TARJETAS */
+/* =========================
+   TARJETAS
+========================= */
 
 .sampling-tile,
 .sampling-tile--compact {
-  width: 41px;
-  height: 60px;
-
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-
-  background: #ffffff;
-
   display: flex;
   flex-direction: column;
-  align-items: center;
+  justify-content: flex-start;
 
-  padding: 2px;
-  box-sizing: border-box;
+  min-height: 78px;
+  max-height: 78px;
+
+  padding: 5px 3px;
+
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #d8d8d8;
+
+  overflow: hidden;
 }
 
-/* LABEL */
+/* SOLO LECTURA (Consulta / Edición) Este es el Contenedor*/
+
+.sampling-tile--readonly {
+  min-height: 110px;
+  max-height: 110px;
+
+  padding: 8px 4px;
+
+  justify-content: flex-start;
+  align-items: center;
+
+  gap: 6px;
+}
+
+.sampling-tile--readonly .sampling-tile__input,
+.sampling-tile--readonly .sampling-tile__count {
+  font-size: 15px;
+  line-height: 1;
+  margin-top: 8px;
+
+  font-weight: 600;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sampling-tile--readonly .sampling-tile__label {
+  font-size: 11px;
+  line-height: 1.05;
+  text-align: center;
+
+  word-break: break-word;
+}
+/* =========================
+   LABEL
+========================= */
 
 .sampling-tile__label {
-  font-size: 0.48rem;
-  font-weight: 700;
-  color: #333333;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b3b3b;
+
+  line-height: 1.1;
+  margin-bottom: 4px;
 
   text-align: center;
-  line-height: 1;
-
-  min-height: 18px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-/* CONTADOR */
+/* =========================
+   CONTADOR
+========================= */
 
 .sampling-tile__count {
   font-size: 0.8rem;
@@ -859,53 +831,59 @@
   text-align: center;
   color: #c9171f;
 
-  margin: 2px 0;
-}
-
-/* BOTONES */
-
-.sampling-tile__actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  gap: 10px;
   margin-top: 4px;
-
-  width: 100%;
 }
 
-.sampling-tap {
-  width: 26px;
-  height: 40px;
+/* =========================
+   INPUT EDICIÓN
+========================= */
 
+.sampling-tile__input {
+  width: 100%;
   border: none;
-  border-radius: 7px;
+  background: transparent;
 
-  font-size: 1rem;
+  font-size: 22px;
   font-weight: 700;
+  color: #b32025;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  text-align: center;
 
   padding: 0;
+  margin-top: 6px;
+
+  outline: none;
+
   line-height: 1;
-
-  cursor: pointer;
 }
 
-.sampling-tap--plus {
-  background: #1a7f37;
-  color: #ffffff;
+/* =========================
+   OCULTAR CONTROLES
+========================= */
+
+.sampling-tile__actions {
+  display: none;
 }
 
-.sampling-tap--minus {
-  background: #6b6b6b;
-  color: #ffffff;
+/* =========================
+   FILA DE DEFECTOS
+========================= */
+
+.defects-grid {
+  margin-top: 22px;
 }
 
-/* FORMULARIO CONTEXTO */
+/* =========================
+   GRID GENERAL
+========================= */
+
+.sampling-grid {
+  gap: 8px;
+}
+
+/* =========================
+   FORMULARIO CONTEXTO
+========================= */
 
 .estimation-form-grid {
   display: grid;
@@ -934,7 +912,24 @@
   box-sizing: border-box;
 }
 
-/* móvil */
+/* =========================
+   DOS COLUMNAS
+========================= */
+
+.estimation-row-two-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.compact-select {
+  height: 30px;
+  padding: 4px 10px;
+}
+
+/* =========================
+   TABLET / MOVIL
+========================= */
 
 @media (max-width: 768px) {
 
@@ -948,15 +943,35 @@
     height: 40px;
     font-size: 0.95rem;
   }
-
-  .estimation-row-two-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-.compact-select {
-  height: 30px;
-  padding: 4px 10px;
 }
 
+/* =========================
+   CELULARES
+========================= */
+
+@media (max-width: 480px) {
+
+  .sampling-tile,
+  .sampling-tile--compact {
+    min-height: 78px;
+    max-height: 78px;
+
+    padding: 4px 3px;
+  }
+
+  .sampling-tile__label {
+    font-size: 11px;
+  }
+
+  .sampling-tile__input {
+    font-size: 28px;
+  }
+
+  .sampling-grid {
+    gap: 6px;
+  }
+
+  .defects-grid {
+    margin-top: 26px;
+  }
 }

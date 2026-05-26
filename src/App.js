@@ -11,9 +11,10 @@ import './App.css';
 import { ROLE_OPTIONS, ROLE_ROUTES } from './constants/roles';
 import LoginScreen from './components/auth/LoginScreen';
 import EstimationHeaderPage from './pages/EstimationHeaderPage';
-import EstimationSamplingPage from './pages/EstimationSamplingPage';
+import EstimationSamplingPageTF from './pages/EstimationSamplingPageTF';
 import EstimationSamplingEditPage from './pages/EstimationSamplingEditPage';
 import PantallaConsultaEstFruta from './pages/PantallaConsultaEstFruta';
+import PantallaDatosGuardadosCelular from './pages/PantallaDatosGuardadosCelular';
 import RoleHomePage from './pages/RoleHomePage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { authenticateUser, getActiveUsers } from './services/authService';
@@ -120,87 +121,65 @@ function AuthApp() {
   );
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={
-          shouldGoToRolePath ? (
-            <Navigate to={rolePath} replace />
-          ) : (
-            <LoginScreen
-              users={users}
-              form={credentials}
-              isOnline={isOnline}
-              isLoading={isLoading}
-              error={error}
-              onChange={onInputChange}
-              onValidate={onValidate}
-              onExit={onExit}
+      <Routes>
+        <Route
+          path="/datos-locales"
+          element={<PantallaDatosGuardadosCelular />}
+        />
+    <Route
+      path="/login"
+      element={
+        shouldGoToRolePath ? (
+          <Navigate to={rolePath} replace />
+        ) : (
+          <LoginScreen
+            users={users}
+            form={credentials}
+            isOnline={isOnline}
+            isLoading={isLoading}
+            error={error}
+            onChange={onInputChange}
+            onValidate={onValidate}
+            onExit={onExit}
+          />
+        )
+      }
+    />
+
+    {ROLE_OPTIONS.map((role) => {
+      const path = ROLE_ROUTES[role];
+
+      return (
+        <Route
+          key={role}
+          element={
+            <ProtectedRoute
+              user={currentUser}
+              allowedRoles={[role]}
             />
-          )
-        }
-      />
-
-      {ROLE_OPTIONS.map((role) => {
-        const path = ROLE_ROUTES[role];
-
-        return (
+          }
+        >
           <Route
-            key={role}
+            path={path}
             element={
-              <ProtectedRoute
+              <PantallaConsultaEstFruta
                 user={currentUser}
-                allowedRoles={[role]}
+                onLogout={onExit}
               />
             }
-          >
-            <Route
-              path={path}
-              element={
-                <Navigate
-                  to="/estimaciones/consulta"
-                  replace
-                />
-              }
-            />
-          </Route>
-                  );
-                })}
+          />
+        </Route>
+      );
+    })}
 
-                {ROLE_OPTIONS.map((role) => {
-            const path = ROLE_ROUTES[role];
-
-            return (
-              <Route
-                key={role}
-                element={
-                  <ProtectedRoute
-                    user={currentUser}
-                    allowedRoles={[role]}
-                  />
-                }
-              >
-                <Route
-                  path={path}
-                  element={
-                    <Navigate
-                      to="/estimaciones/consulta"
-                      replace
-                    />
-                  }
-                />
-              </Route>
-            );
-          })}
-
-          <Route
-            element={
-              <ProtectedRoute
-                user={currentUser}
-                allowedRoles={[...ROLE_OPTIONS]}
-              />
-            }
-          >
+    <Route
+      element={
+        <ProtectedRoute
+          user={currentUser}
+          allowedRoles={[...ROLE_OPTIONS]}
+        />
+      }
+    >
 
         <Route
           path="/estimaciones/nueva"
@@ -210,11 +189,15 @@ function AuthApp() {
         />
         <Route
           path="/estimaciones/muestreo"
-          element={<EstimationSamplingPage />}
+          element={<EstimationSamplingPageTF />}
         />
         <Route
           path="/estimaciones/editar/:id"
           element={<EstimationSamplingEditPage />}
+        />
+        <Route
+          path="/estimaciones/locales"
+          element={<PantallaDatosGuardadosCelular />}
         />
       </Route>
 

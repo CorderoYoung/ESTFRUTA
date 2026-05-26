@@ -1,0 +1,136 @@
+/* ========================================
+   TOMA FISICA
+======================================== */
+
+/* GRID */
+
+.sampling-grid {
+  display: grid;
+
+  grid-template-columns: repeat(8, 1fr);
+
+  gap: 6px;
+}
+
+/* ========================================
+   TARJETA
+======================================== */
+
+.sampling-tile {
+  border: 1px solid #e0e0e0;  /* borde gris claro para la tarjeta */
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  display: flex; /* Usa flexbox para organizar el contenido dentro de la tarjeta */
+  flex-direction: column; /* Apila los elementos verticalmente */
+
+  align-items: center; /* Centra los elementos horizontalmente */
+  justify-content: flex-start; /* Alinea los elementos al inicio verticalmente */
+
+  min-height: auto; /* altura mínima automática para adaptarse al contenido */
+  max-height: none; /* sin altura máxima para permitir que la tarjeta crezca según el contenido */
+
+  padding: 2px;  /* crea un margen interno */
+
+  gap: 2px;   /* Espacio entre elementos */
+}
+
+/* ========================================
+   ALTURA TAMAÑOS
+======================================== */
+
+.sampling-tile-size {
+  min-height: 90px; /* altura fija para tarjetas de tamaños */
+  max-height: 90px; /* altura fija para tarjetas de tamaños */
+}
+
+/* ========================================
+   ALTURA DEFECTOS
+======================================== */
+
+.sampling-tile-defect {
+  min-height: 90px; /* altura fija para tarjetas de defectos */
+  max-height: 90px; /* altura fija para tarjetas de defectos */
+}
+
+/* ========================================
+   LABEL
+======================================== */
+
+.sampling-tile__label {
+  font-size: 0.55rem;
+  font-weight: 700;
+
+  color: #333333;
+
+  text-align: center;
+
+  line-height: 1;
+}
+
+/* ========================================
+   VALOR
+======================================== */
+
+.sampling-tile__count {
+  font-size: 8px;  /* Valor más grande */
+  font-weight: 700; /* Negrita para destacar */
+  text-align: center;
+  color: #c9171f;
+
+  margin-top: 2px;  /* pequeño margen superior para separar del label */
+  margin-bottom: 2px; /* margen inferior para separar de los botones */
+
+  line-height: 0;   /* Ajusta el espacio entre líneas para evitar que el número se vea demasiado separado */
+}
+
+/* ========================================
+   BOTONES
+======================================== */
+
+.sampling-tile__actions {
+  display: flex; /* Usa flexbox para alinear los botones horizontalmente */
+  flex-direction: column; /* Apila los botones verticalmente */
+
+  align-items: center; /* Centra los botones horizontalmente */
+
+  gap: 10px; /* Espacio entre botones */
+
+  margin-top: auto; /* Empuja los botones hacia abajo */
+}
+
+/* ========================================
+   BOTON
+======================================== */
+
+.sampling-tap {
+  width: 26px; /* Ancho fijo para botones pequeños */
+  height: 22px; /* Altura fija para botones pequeños */
+
+  border: none;
+  border-radius: 6px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 15px; /* Tamaño de fuente para el símbolo del botón */
+  font-weight: 700; /* Negrita para el símbolo del botón */
+
+  cursor: pointer; /* Cambia el cursor al pasar sobre el botón */
+}
+
+/* PLUS */
+
+.sampling-tap--plus {
+  background: #1a7f37;
+  color: #ffffff;
+}
+
+/* MINUS */
+
+.sampling-tap--minus {
+  background: #6b6b6b;
+  color: #ffffff;
+}

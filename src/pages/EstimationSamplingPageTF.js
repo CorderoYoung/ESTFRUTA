@@ -1,24 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import '../AppTomaFisica.css';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   DEFECT_CODES,
   FRUIT_SIZE_CODES,
 } from '../constants/sampling';
-import { ESTIMACION_HEADER_STORAGE_KEY } from '../constants/estimationContext';
 import {
   canCreateEstimationRecord,
   parseCount,
 } from '../domain/estimationBusinessRules';
-import SamplingCounterTile from '../components/estimation/SamplingCounterTile';
 import { useEstimacionDetalle } from '../hooks/useEstimacionDetalle';
-import { useDebouncedEffect } from '../hooks/useDebouncedEffect';
-import {
-  clearOperationalDraft,
-  loadOperationalDraft,
-  saveOperationalDraft,
-  shouldRestoreDetalle,
-} from '../services/operationalDraftStorage';
+import { clearOperationalDraft } from '../services/operationalDraftStorage';
 import { requestCreateEstimation } from '../services/estimationService';
+import useOffline from '../hooks/useOffline';
+import SamplingCounterTileTomaFisica from '../components/estimation/SamplingCounterTileTomaFisica';
 
 function toApiDetalle(rows) {
   return rows.map(({ tipoLinea, codigoClasificacion, cantidadDelta }) => ({
@@ -28,36 +23,49 @@ function toApiDetalle(rows) {
   }));
 }
 
-function readStoredHeader() {
-  try {
-    const raw = window.sessionStorage.getItem(ESTIMACION_HEADER_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed && parsed.Tipo && parsed.GF) return parsed;
-  } catch {
-    // ignore
-  }
-  return null;
+// Simplified: only accept header passed via navigation state
+function initialHeaderFromRoute(routeLocation) {
+  return routeLocation.state?.header || null;
 }
 
-function initialHeaderFromRoute(location) {
-  if (location.state?.header) return location.state.header;
-  const draft = loadOperationalDraft();
-  if (draft?.header?.GF) return draft.header;
-  return readStoredHeader();
-}
-
-function EstimationSamplingPage() {
+function EstimationSamplingPageTF() {
   const navigate = useNavigate();
   const location = useLocation();
+  const estimationId = location.state?.estimationId;
   const [header] = useState(() => initialHeaderFromRoute(location));
+  const { isOnline, guardarRegistroLocal } = useOffline();
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [samplingSaved, setSamplingSaved] = useState(false);
+
   /*const [tab, setTab] = useState('sizes');*/
   const [submitMessage, setSubmitMessage] = useState('');
   const restoredRef = useRef(false);
+  
+      useEffect(() => {
+
+    // no local connectivity listeners; provider handles it
+  }, []);
 
   useEffect(() => {
-    if (!header) navigate('/estimaciones/nueva', { replace: true });
-  }, [header, navigate]);
+
+  const timer = setTimeout(() => {
+          setIsRestoring(false);
+        }, 300);
+
+        return () => clearTimeout(timer);
+
+      }, []);
+
+  useEffect(() => {
+
+      if (isRestoring) return;
+
+      if (!header)
+        navigate('/estimaciones/nueva', {
+          replace: true
+        });
+
+    }, [header, navigate, isRestoring]);
 
   const {
     detalle,
@@ -68,45 +76,9 @@ function EstimationSamplingPage() {
     resetDetalle,
     replaceDetalle,
     TIPO_LINEA,
-  } = useEstimacionDetalle();
+        } = useEstimacionDetalle();
 
-  useEffect(() => {
-    if (!header || restoredRef.current) return;
-    restoredRef.current = true;
-    const draft = loadOperationalDraft();
-    if (shouldRestoreDetalle(draft, header)) {
-      replaceDetalle(draft.detalle);
-      /*setTab(draft.activeTab === 'defects' ? 'defects' : 'sizes');*/
-    }
-  }, [header, replaceDetalle]);
-
-  const persistDraft = useCallback(() => {
-    if (!header) return;
-    saveOperationalDraft({ header, detalle });
-  }, [header, detalle, /* tab */]);
-
-  useDebouncedEffect(
-    () => {
-      persistDraft();
-    },
-    [header, detalle, ],
-    280
-  );
-
-  useEffect(() => {
-    function flush() {
-      persistDraft();
-    }
-    function onVisibility() {
-      if (document.visibilityState === 'hidden') flush();
-    }
-    window.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('pagehide', flush);
-    return () => {
-      window.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('pagehide', flush);
-    };
-  }, [persistDraft]);
+  // Autosave/restore features removed for simplicity per operational flow.
 
   const ptasMuestras = header?.PtasMues ?? '';
   const { frutasEmpacables, frutasNoEmpacables, frutasTotales } = aggregates;
@@ -116,8 +88,8 @@ function EstimationSamplingPage() {
     frutasTotales,
   });
 
-  const gfOk = Boolean(header?.GF);
-  const canSave = Boolean(header) && gfOk && countsMatch;
+  const canSave = Boolean(header) && countsMatch;
+  
 
   const ptasParsed = parseCount(ptasMuestras);
   const showMismatchHint = ptasParsed !== null && !countsMatch;
@@ -133,25 +105,45 @@ function EstimationSamplingPage() {
 
   async function handleCrearRegistro() {
     setSubmitMessage('');
-    persistDraft();
+    
     const payload = mergePayload();
     if (!payload) return;
+    if (!isOnline) {
+      const uniqueKey = `${payload.Tipo || payload.tipo}-${payload.lote || payload.Lote || ''}-${payload.parcela || payload.Parcela || ''}-${Date.now()}`;
+      const ok = guardarRegistroLocal({
+        ...payload,
+        uniqueKey,
+      });
+      if (ok) {
+        alert('Registro guardado localmente');
+        clearOperationalDraft();
+        setSamplingSaved(true);
+        setSubmitMessage('Guardado local');
+        return;
+      }
+      setSubmitMessage('Error guardando local');
+      return;
+    }
+
+    payload.estimationId = estimationId;
     const result = await requestCreateEstimation(payload);
+
     if (!result.success) {
       setSubmitMessage(result.errors.join(' '));
       return;
     }
+
+    alert('Toma Física guardada con éxito');
     clearOperationalDraft();
-    try {
-      window.sessionStorage.removeItem(ESTIMACION_HEADER_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-    setSubmitMessage('Validacion correcta (demo). Listo para API.');
+    setSamplingSaved(true);
+    setSubmitMessage('Guardado en servidor');
   }
 
   function handleVolverCabecera() {
-    persistDraft();
+    if (!samplingSaved) {
+      alert('Debe guardar la Toma Física antes de regresar a Cabecera');
+      return;
+    }
     navigate('/estimaciones/nueva', { replace: true });
   }
 
@@ -159,14 +151,19 @@ function EstimationSamplingPage() {
     resetDetalle();
     setSubmitMessage('');
     if (header) {
-      saveOperationalDraft({ header, detalle: [],  });
+      // clear any operational draft (we no longer autosave during capture)
+      clearOperationalDraft();
     }
   }
+  
 
   const contextLine = useMemo(() => {
-    if (!header) return '';
-    return `${header.Tipo} · ${header.Cosecha} · GF ${header.GF}`;
-  }, [header]);
+
+      if (!header) return '';
+
+      return `${header.Tipo} · ${header.Cosecha} · ${header.Lote} - ${header.Semana}`;
+
+    }, [header]);
 
   if (!header) {
     return null;
@@ -176,17 +173,84 @@ function EstimationSamplingPage() {
     <div className="sampling-shell">
       <header className="sampling-shell__header">
         <button
-          type="button"
-          className="sampling-shell__back"
-          onClick={handleVolverCabecera}
+            type="button"
+            className="sampling-shell__back"
+            onClick={handleVolverCabecera}
+            disabled={!samplingSaved}
+            title={
+              !samplingSaved
+                ? 'Debe guardar la Toma Física antes de regresar a Cabecera'
+                : 'Volver a Cabecera'
+            }
+            style={{
+              cursor: samplingSaved
+                ? 'pointer'
+                : 'not-allowed',
+
+              visibility: samplingSaved
+                ? 'visible'
+                : 'hidden'
+            }}
+          >
+            Cabecera
+          </button>
+            
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#1a7f37',
+            marginLeft: 10,
+          }}
         >
-          Cabecera
-        </button>
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: isOnline
+                  ? '#22c55e'
+                  : '#ef4444',
+              display: 'inline-block',
+            }}
+          />
+
+          {isOnline ? 'En línea' : 'Sin línea'}
+        </div>
         <div className="sampling-shell__context" title={contextLine}>
           {contextLine}
         </div>
-      </header>
+        <button
+            style={{
+              border: 'none',
+              borderRadius: 8,
+              background: '#2563eb',
+              color: '#ffffff',
+              fontSize: 18,
+              marginLeft: 12,
+              cursor: 'pointer',
+            }}
+            style={{
+              cursor: samplingSaved
+                ? 'pointer'
+                : 'not-allowed',
 
+              visibility: samplingSaved
+                ? 'visible'
+                : 'hidden'
+            }}
+            onClick={() => navigate('/estimaciones/locales')}
+          >
+            🛢️
+        </button>
+            
+        
+        
+      </header>
+        
       <p className="sampling-autosave-hint" aria-live="polite">
         Toma Fisica  
       </p>
@@ -216,29 +280,6 @@ function EstimationSamplingPage() {
         </p>
       ) : null}
 
-      {/*<div className="sampling-tabs" role="tablist" aria-label="Tipo de conteo"> 
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'sizes'}
-          className={tab === 'sizes' ? 'sampling-tab is-active' : 'sampling-tab'}
-          onClick={() => setTab('sizes')}
-        >
-          Tamanos 5-12
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'defects'}
-          className={
-            tab === 'defects' ? 'sampling-tab is-active' : 'sampling-tab'
-          }
-          onClick={() => setTab('defects')}
-        >
-          Defectos
-        </button>
-      </div> */}
-
       <div
         className="sampling-shell__panel"
         role="tabpanel"
@@ -247,12 +288,13 @@ function EstimationSamplingPage() {
         {/*{tab === 'sizes' ? (*/}
           <div className="sampling-grid-sizes">
             {FRUIT_SIZE_CODES.map((code) => (
-              <SamplingCounterTile
+              <SamplingCounterTileTomaFisica
                 key={code}
                 label={code}
                 count={countFor(TIPO_LINEA.TAMANO, code)}
                 onIncrement={() => increment(TIPO_LINEA.TAMANO, code)}
                 onDecrement={() => decrement(TIPO_LINEA.TAMANO, code)}
+                className="sampling-tile-size"
               />
             ))}
           </div>
@@ -261,19 +303,17 @@ function EstimationSamplingPage() {
 
       <div
         className="sampling-shell__panel sampling-shell__panel--defects"
-        role="tabpanel"
-        /* hidden={tab !== 'defects'} */
+        role="tabpanel" 
       >
-        {/* {tab === 'defects' ? ( */}
           <div className="sampling-grid-defects">
             {DEFECT_CODES.map((code) => (
-              <SamplingCounterTile
+              <SamplingCounterTileTomaFisica
                 key={code}
                 label={code}
-                variant="compact"
                 count={countFor(TIPO_LINEA.DEFECTO, code)}
                 onIncrement={() => increment(TIPO_LINEA.DEFECTO, code)}
                 onDecrement={() => decrement(TIPO_LINEA.DEFECTO, code)}
+                className="sampling-tile-defect"
               />
             ))}
           </div>
@@ -287,22 +327,15 @@ function EstimationSamplingPage() {
           disabled={!canSave}
           onClick={handleCrearRegistro}
           title={
-            !gfOk
-              ? 'Cabecera invalida.'
-              : !countsMatch
-                ? 'Total debe ser igual a PtasMues.'
-                : ''
-          }
+                  !countsMatch
+                    ? 'Total debe ser igual a PtasMues.'
+                    : ''
+                }
+          
         >
           Crear Registro
         </button>
-        <button
-          type="button"
-          className="sampling-footer__secondary"
-          onClick={handleLimpiarConteos}
-        >
-          Limpiar conteos
-        </button>
+        
       </footer>
 
       {submitMessage ? (
@@ -320,4 +353,4 @@ function EstimationSamplingPage() {
   );
 }
 
-export default EstimationSamplingPage;
+export default EstimationSamplingPageTF;

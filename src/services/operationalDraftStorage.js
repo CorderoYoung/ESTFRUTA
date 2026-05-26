@@ -28,8 +28,7 @@ export function getHeaderFingerprint(header) {
     trim(header.Poblacion),
     trim(header.PtasEstac),
     trim(header.PtasMues),
-    trim(header.Area),
-    trim(header.GF),
+    trim(header.GF ?? header.gf),
   ];
   return parts.join('|');
 }
@@ -37,28 +36,46 @@ export function getHeaderFingerprint(header) {
 let restoreSeq = 0;
 
 function normalizeDetalleRow(row) {
-  if (!row || typeof row !== 'object') return null;
-  const tipoLinea = trim(row.tipoLinea);
-  const codigoClasificacion = trim(row.codigoClasificacion);
-  const cantidadDelta = Number(row.cantidadDelta);
-  if (!tipoLinea || !codigoClasificacion || !Number.isFinite(cantidadDelta)) {
+  if (!row || typeof row !== 'object') {
     return null;
   }
+
+  const tipoLinea = String(row.tipoLinea || '').trim();
+  const codigoClasificacion = String(row.codigoClasificacion || '').trim();
+  const cantidadDelta = Number(row.cantidadDelta);
+
+  if (
+    !tipoLinea ||
+    !codigoClasificacion ||
+    !Number.isFinite(cantidadDelta)
+  ) {
+    return null;
+  }
+
   restoreSeq += 1;
-  const id =
-    trim(row.id) || `restored-${Date.now()}-${restoreSeq}`;
+
   return {
-    id,
+    id:
+      typeof row.id === 'string' && row.id.trim()
+        ? row.id.trim()
+        : `restored-${Date.now()}-${restoreSeq}`,
+
     tipoLinea,
     codigoClasificacion,
     cantidadDelta,
+
     marcaTiempo:
-      typeof row.marcaTiempo === 'string' ? row.marcaTiempo : new Date().toISOString(),
+      typeof row.marcaTiempo === 'string'
+        ? row.marcaTiempo
+        : new Date().toISOString(),
   };
 }
 
 export function normalizeDetalleForRestore(rows) {
-  if (!Array.isArray(rows)) return [];
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
   return rows.map(normalizeDetalleRow).filter(Boolean);
 }
 
@@ -114,7 +131,7 @@ export function saveOperationalDraft({ header, detalle, activeTab }) {
     // ignore
   }
   try {
-    if (header && header.Tipo && header.GF) {
+    if (header && header.Tipo && (header.GF || header.gf)) {
       window.sessionStorage.setItem(
         ESTIMACION_HEADER_STORAGE_KEY,
         JSON.stringify(header)
