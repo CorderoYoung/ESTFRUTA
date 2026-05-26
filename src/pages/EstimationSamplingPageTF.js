@@ -28,33 +28,107 @@ function initialHeaderFromRoute(routeLocation) {
   return routeLocation.state?.header || null;
 }
 
+function normalizeHeader(record = {}) {
+  return {
+    Cosecha: record.Cosecha || record.cosecha || record.pc || '',
+    Tipo: record.Tipo || record.tipo || '',
+    Semana: record.Semana || record.semana || '',
+    Forza: record.Forza || record.forza || '',
+    Lote: record.Lote || record.lote || '',
+    Parcela: record.Parcela || record.parcela || record.seccion || '',
+    Poblacion: record.Poblacion || record.poblacion || '',
+    PtasEstac: record.PtasEstac || record.ptasEstac || '',
+    PtasMues:
+      record.PtasMues || record.PtasMuestras || record.ptasMues || '',
+    Area: record.Area || record.area || '',
+    GF: record.GF || record.gf || '',
+    uniqueKey: record.uniqueKey || record.uniqueId || '',
+  };
+}
+
 function EstimationSamplingPageTF() {
   const navigate = useNavigate();
   const location = useLocation();
   const estimationId = location.state?.estimationId;
-  const [header] = useState(() => initialHeaderFromRoute(location));
-  const { isOnline, guardarRegistroLocal } = useOffline();
+  const [header, setHeader] = useState(() => initialHeaderFromRoute(location));
+  const { isOnline, guardarRegistroLocal, actualizarRegistroLocal, registrosLocales } = useOffline();
+  const [localEditId, setLocalEditId] = useState(null);
   const [isRestoring, setIsRestoring] = useState(false);
-  const [samplingSaved, setSamplingSaved] = useState(false);
+  const [samplingSaved, setSamplingSaved] = useState(
+    () => Boolean(estimationId || location.state?.localId)
+  );
 
   /*const [tab, setTab] = useState('sizes');*/
   const [submitMessage, setSubmitMessage] = useState('');
   const restoredRef = useRef(false);
   
-      useEffect(() => {
+  const {
+    detalle,
+    aggregates,
+    increment,
+    decrement,
+    countFor,
+    resetDetalle,
+    replaceDetalle,
+    TIPO_LINEA,
+  } = useEstimacionDetalle();
+
+  useEffect(() => {
 
     // no local connectivity listeners; provider handles it
   }, []);
 
   useEffect(() => {
 
-  const timer = setTimeout(() => {
-          setIsRestoring(false);
-        }, 300);
+    const timer = setTimeout(() => {
+      setIsRestoring(false);
+    }, 300);
 
-        return () => clearTimeout(timer);
+    return () => clearTimeout(timer);
 
-      }, []);
+  }, []);
+
+  useEffect(() => {
+    const incoming = location.state || {};
+    let source = incoming;
+    let resolvedLocalId = incoming.localId;
+
+    const incomingUniqueKey =
+      incoming.header?.uniqueKey || incoming.uniqueKey || '';
+
+    if (!resolvedLocalId && incomingUniqueKey) {
+      const recordByKey = registrosLocales.find(
+        (r) => r.uniqueKey === incomingUniqueKey
+      );
+      if (recordByKey) {
+        resolvedLocalId = recordByKey.id;
+      }
+    }
+
+    if (resolvedLocalId) {
+      const storedRecord = registrosLocales.find((r) => r.id === resolvedLocalId);
+      if (storedRecord) {
+        source = storedRecord;
+        setLocalEditId(resolvedLocalId);
+        setSamplingSaved(true);
+      }
+    }
+
+    if (Array.isArray(source.detalle)) {
+      replaceDetalle(source.detalle);
+    }
+
+    const normalized = normalizeHeader(source);
+    if (normalized.Cosecha || normalized.Tipo || normalized.Lote || normalized.GF) {
+      if (
+        !header ||
+        header.uniqueKey !== normalized.uniqueKey ||
+        !header.PtasMues
+      ) {
+        setHeader(normalized);
+      }
+    }
+  }, [location.state, registrosLocales, header]);
 
   useEffect(() => {
 
@@ -67,16 +141,6 @@ function EstimationSamplingPageTF() {
 
     }, [header, navigate, isRestoring]);
 
-  const {
-    detalle,
-    aggregates,
-    increment,
-    decrement,
-    countFor,
-    resetDetalle,
-    replaceDetalle,
-    TIPO_LINEA,
-        } = useEstimacionDetalle();
 
   // Autosave/restore features removed for simplicity per operational flow.
 
@@ -109,7 +173,29 @@ function EstimationSamplingPageTF() {
     const payload = mergePayload();
     if (!payload) return;
     if (!isOnline) {
-      const uniqueKey = `${payload.Tipo || payload.tipo}-${payload.lote || payload.Lote || ''}-${payload.parcela || payload.Parcela || ''}-${Date.now()}`;
+      const uniqueKey =
+        header?.uniqueKey ||
+        `${payload.Tipo || payload.tipo}-${payload.lote || payload.Lote || ''}-${payload.parcela || payload.Parcela || ''}-${Date.now()}`;
+
+      // If editing an existing local record, update instead of inserting
+      if (localEditId) {
+        const changed = actualizarRegistroLocal(localEditId, {
+          ...payload,
+          uniqueKey,
+          estadoSync: 'PENDIENTE_SYNC',
+          fechaLocal: new Date().toISOString(),
+        });
+        if (changed) {
+          alert('Registro actualizado localmente');
+          clearOperationalDraft();
+          setSamplingSaved(true);
+          setSubmitMessage('Actualizado local');
+          return;
+        }
+        setSubmitMessage('Error actualizando local');
+        return;
+      }
+
       const ok = guardarRegistroLocal({
         ...payload,
         uniqueKey,

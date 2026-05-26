@@ -57,6 +57,8 @@ export function OfflineProvider({ children }) {
 
   const eliminarRegistroLocal = useCallback((id) => eliminarRegistroLocalById(id), []);
 
+  const actualizarRegistroLocal = useCallback((id, patch) => updateRegistroLocal(id, patch), []);
+
   const syncRegistro = useCallback(async (id) => {
     const item = obtenerRegistrosLocales().find((r) => r.id === id);
     if (!item) return { success: false, error: 'not_found' };
@@ -90,6 +92,7 @@ export function OfflineProvider({ children }) {
     registrosLocales,
     guardarRegistroLocal,
     eliminarRegistroLocal,
+    actualizarRegistroLocal,
     syncRegistro,
     syncAll,
   }), [isOnline, registrosLocales, guardarRegistroLocal, eliminarRegistroLocal, syncRegistro, syncAll]);

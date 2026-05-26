@@ -124,8 +124,6 @@ setRegistros(datosFiltrados);
     });
   }, [selectedGF, selectedLote, selectedSeccion, registros]);
 
-  const canCreate = true;
-
   return (
     <div className="sampling-shell">
 
@@ -206,8 +204,8 @@ setRegistros(datosFiltrados);
             📈
           </button>
 
-          {canCreate && (
             <button
+              type="button"
               style={{
                 width: 24,
                 height: 24,
@@ -223,7 +221,6 @@ setRegistros(datosFiltrados);
             >
               +
             </button>
-          )}
 
         </div>
       </div>

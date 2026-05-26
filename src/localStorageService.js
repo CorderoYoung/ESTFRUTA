@@ -29,15 +29,14 @@ export const guardarLocalmente = (registro) => {
     const registros = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
 
     const uniqueKey = registro.uniqueKey || registro.uniqueId || null;
+    let existingIndex = -1;
 
-    // VALIDAR DUPLICADO por uniqueKey o por id
-    const existe = uniqueKey
-      ? registros.find((r) => r.uniqueKey === uniqueKey)
-      : registros.find((r) => r.id === registro.id);
+    if (uniqueKey) {
+      existingIndex = registros.findIndex((r) => r.uniqueKey === uniqueKey);
+    }
 
-    if (existe) {
-      alert('Ya existe este registro');
-      return false;
+    if (existingIndex < 0 && registro.id) {
+      existingIndex = registros.findIndex((r) => r.id === registro.id);
     }
 
     const id = registro.id || genId();
@@ -50,7 +49,14 @@ export const guardarLocalmente = (registro) => {
       fechaLocal: registro.fechaLocal || new Date().toISOString(),
     };
 
-    registros.push(item);
+    if (existingIndex >= 0) {
+      registros[existingIndex] = {
+        ...registros[existingIndex],
+        ...item,
+      };
+    } else {
+      registros.push(item);
+    }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
     notifyAll();
