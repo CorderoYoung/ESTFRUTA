@@ -27,6 +27,7 @@ export const DEFECT_CODES = Object.freeze([
   'Cicatr',
   'Doble',
   '+Pequ',
+  'Mult',
   'Torcid',
   'Roedo',
   'Tecla',

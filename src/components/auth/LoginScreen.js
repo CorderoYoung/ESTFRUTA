@@ -15,7 +15,7 @@ function LoginScreen({
     <div className="login-page">
       <main className="login-card">
         <header className="login-header">
-          <h1 className="login-title">ESTFRUTA</h1>
+          <h1 className="login-title">Muestreo Estimación de Fruta</h1>
         </header>
 
         <section className="login-content">

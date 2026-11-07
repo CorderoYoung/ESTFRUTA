@@ -1,0 +1,244 @@
+/* ── Reset base ── */
+* { box-sizing: border-box; }
+ 
+.estimacion-seccion-page {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  font-family: Arial, sans-serif;
+  color: #222;
+  overflow: hidden;
+}
+ 
+/* ── Header ── */
+.estimacion-seccion-header {
+  flex-shrink: 0;
+  height: 56px;
+  background: #c90000;
+  color: #fff;
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  text-align: center;
+}
+ 
+.estimacion-seccion-header h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+ 
+.estimacion-seccion-header h2 {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+ 
+.estimacion-back-button,
+.estimacion-refresh-button {
+  border: none;
+  background: transparent;
+  color: white;
+  font-size: 26px;
+  cursor: pointer;
+  padding: 0;
+}
+ 
+/* ── Info cabecera ── */
+.estimacion-info-grid {
+  flex-shrink: 0; /* Evita que se reduzca el tamaño del grid */
+  display: grid; /* Establece el contenedor como grid */
+  grid-template-columns: repeat(5, 1fr); /* Define 5 columnas de igual tamaño */  
+  gap: 0; /* Elimina el espacio entre columnas y filas */
+  padding: 4px 4px; /* Agrega padding al grid */
+  text-align: center; /* Centra el texto en cada celda */
+  border-bottom: 1px solid #eee; /* Agrega una línea divisoria debajo del grid */
+}
+ 
+.estimacion-info-grid div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 0;
+}
+ 
+.estimacion-info-grid span {
+  color: #9b0000;
+  font-size: 10px;
+  font-weight: 700;
+}
+ 
+.estimacion-info-grid strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+ 
+/* ── Tamaños ── */
+.estimacion-tamanos-grid {
+  margin-top: 8px;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  border-top: 1px solid #1595c9;
+  border-bottom: 1px solid #1595c9;
+}
+ 
+.tamano-card {
+  text-align: center;
+  border-right: 1px solid #e5e5e5;
+}
+ 
+.tamano-card span {
+  display: block;
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 3px 0;
+}
+ 
+.tamano-card strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 0 4px;
+}
+ 
+.tamano-5 span  { background: #006b35; }
+.tamano-6 span  { background: #2f8f58; }
+.tamano-7 span  { background: #5fbd62; }
+.tamano-8 span  { background: #ffe08a; color: #333; }
+.tamano-9 span  { background: #ffb164; color: #333; }
+.tamano-10 span { background: #f66b45; }
+.tamano-11 span { background: #dd3029; }
+.tamano-12 span { background: #b4002d; }
+ 
+/* ── Resumen ── */
+.estimacion-resumen {
+  flex-shrink: 0;
+  margin: 4px 0 0;
+}
+ 
+.resumen-row {
+  display: grid;
+  grid-template-columns: 1.6fr 0.7fr 1.4fr 0.7fr;
+  align-items: center;
+  gap: 4px;
+  background: #fde7e7;
+  padding: 5px 8px;
+  margin-bottom: 3px;
+  font-size: 12px;
+  border: 1.5px solid;
+}
+ 
+.resumen-row span {
+  color: #3d6fa6;
+  font-weight: 700;
+}
+ 
+.resumen-row strong {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 800;
+  color: #111;
+}
+ 
+.resumen-total   { border-color: #2fc878; }
+.resumen-no-emp  { border-color: #e34d4d; }
+.resumen-emp     { border-color: #2d9bd6; }
+.resumen-emp strong:last-child { color: red; }
+ 
+/* ── Gráfico ── */
+.estimacion-grafico {
+  flex: 1;
+  min-height: 0;
+  border: 1.5px solid #ccc;
+  margin: 4px 4px 4px;
+  padding: 4px 6px 6px;
+  display: flex;
+  flex-direction: column;
+}
+ 
+.estimacion-grafico h3 {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 12px;
+  margin: 0 0 4px;
+  color: #444;
+}
+ 
+.grafico-barras {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  align-items: flex-end;
+  gap: 3px;
+  border-bottom: 1px solid #999;
+  padding: 0 4px;
+}
+ 
+.barra-item {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.barra-valor {
+  font-size: 9px;
+  margin-bottom: 2px;
+  line-height: 1;
+}
+
+.barra {
+  width: 100%;
+  max-width: 32px;
+}
+
+.barra-label {
+  font-size: 10px;
+  margin-top: 3px;
+  font-weight: 600;
+}
+ 
+.barra-5  { background: #006b35; }
+.barra-6  { background: #2f8f58; }
+.barra-7  { background: #5fbd62; }
+.barra-8  { background: #ffe08a; }
+.barra-9  { background: #ffb164; }
+.barra-10 { background: #f66b45; }
+.barra-11 { background: #dd3029; }
+.barra-12 { background: #b4002d; }
+ 
+/* Porcentajes por grupo de tamaño debajo del gráfico */
+.gf-grupos {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid #ddd;
+  margin-top: 4px;
+  padding: 4px 20px 2px;
+  text-align: center;
+}
+
+.gf-grupo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.gf-grupo-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #333;
+}
+
+.gf-grupo-pct {
+  font-size: 13px;
+  font-weight: 800;
+  color: #111;
+}

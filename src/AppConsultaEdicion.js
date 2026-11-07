@@ -18,6 +18,9 @@ import PantallaDatosGuardadosCelular from './pages/PantallaDatosGuardadosCelular
 import RoleHomePage from './pages/RoleHomePage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { authenticateUser, getActiveUsers } from './services/authService';
+import PantallaEstimacionPorSeccion from './pages/PantallaEstimacionPorSeccion';
+import PantallaAnalisisGF_Lote from './pages/PantallaAnalisisGF_Lote';
+import PantallaAnalisisParcelaDetalle from './pages/PantallaAnalisisParcelaDetalle';
 
 function AuthApp() {
   const navigate = useNavigate();
@@ -178,6 +181,23 @@ function AuthApp() {
       }
     >
 
+        <Route
+          path="/estimaciones/seccion/:id"
+          element={
+            <PantallaEstimacionPorSeccion
+              user={currentUser}
+              onLogout={onExit}
+            />
+          }
+        />
+        <Route
+          path="/estimaciones/analisis"
+          element={<PantallaAnalisisGF_Lote user={currentUser} onLogout={onExit} />}
+        />
+        <Route
+          path="/estimaciones/analisis/parcela/:id"
+          element={<PantallaAnalisisParcelaDetalle />}
+        />
         <Route
           path="/estimaciones/nueva"
           element={

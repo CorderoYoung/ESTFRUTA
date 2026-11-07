@@ -2,6 +2,27 @@ import { ESTIMACION_HEADER_STORAGE_KEY } from '../constants/estimationContext';
 
 export const OPERATIONAL_DRAFT_VERSION = 1;
 
+/**
+ * Genera la clave única canónica para una estimación.
+ * Formato: COSECHA-TIPO-GF-LOTE-PARCELA-AÑO
+ * Ejemplo:  PC-C1-5-20-11-9-2026
+ *
+ * @param {object} header
+ * @returns {string}
+ */
+export function crearUniqueKey(header) {
+  if (!header || typeof header !== 'object') return '';
+
+  const cosecha = String(header.Cosecha ?? header.cosecha ?? '').trim().toUpperCase();
+  const tipo    = String(header.Tipo    ?? header.tipo    ?? '').trim().toUpperCase();
+  const gf      = String(header.GF      ?? header.gf      ?? '').trim().toUpperCase();
+  const lote    = String(Number(header.Lote    ?? header.lote    ?? 0));
+  const parcela = String(Number(header.Parcela ?? header.parcela ?? 0));
+  const anio    = String(header.anio ?? header.Anio ?? new Date().getFullYear());
+
+  return [cosecha, tipo, gf, lote, parcela, anio].join('-');
+}
+
 /** Persistencia durable entre cierres (PWA / movil). */
 export const OPERATIONAL_DRAFT_LOCAL_KEY = 'estfruta_operational_draft_v1';
 
@@ -158,6 +179,24 @@ export function clearOperationalDraft() {
 export function draftHasSamplingProgress(draft) {
   if (!draft || !Array.isArray(draft.detalle)) return false;
   return draft.detalle.length > 0;
+}
+
+/**
+ * Comprueba si ya existe un registro local con el mismo uniqueKey.
+ *
+ * @param {object}   header          - Cabecera del nuevo registro
+ * @param {Array}    registrosLocales - Array proveniente de useOffline
+ * @param {string|null} [excludeId]  - Id local a excluir (modo edición)
+ * @returns {boolean}
+ */
+export function localDuplicateExists(header, registrosLocales, excludeId = null) {
+  if (!Array.isArray(registrosLocales) || registrosLocales.length === 0) return false;
+  const key = crearUniqueKey(header);
+  if (!key) return false;
+  return registrosLocales.some((r) => {
+    if (excludeId && r.id === excludeId) return false;
+    return (r.uniqueKey ?? '') === key;
+  });
 }
 
 /**

@@ -1,0 +1,379 @@
+/* ── Reset ── */
+* { box-sizing: border-box; }
+ 
+.agl-page {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f5f5;
+  font-family: Arial, sans-serif;
+  color: #222;
+  overflow: hidden;
+}
+ 
+/* ── Header ── */
+.agl-header {
+  flex-shrink: 0;
+  height: 52px;
+  background: #15803d; /* Verde agrícola */
+  color: #fff;
+
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+
+  align-items: center;
+  padding: 0 10px;
+}
+
+.agl-back {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.agl-header-center {
+  grid-column: 2;
+
+  justify-self: center;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.agl-online {
+  background: #fff;
+  color: #15803d;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.agl-header-center h1 {
+  margin: 0;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.agl-header-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+ 
+.agl-header-tab {
+  border: 1.5px solid rgba(255,255,255,0.6);
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+ 
+.agl-header-tab--activo {
+  background: #fff;
+  color: #c90000;
+  border-color: #fff;
+}
+ 
+/* ── Filtros ── */
+.agl-filtros {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+}
+ 
+.agl-filtro-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+ 
+.agl-filtro-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+ 
+.agl-select {
+  height: 32px;
+  border: 1.5px solid #ccc;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #222;
+  padding: 0 6px;
+  background: #fff;
+  cursor: pointer;
+  width: 100%;
+}
+ 
+/* ── Scroll container ── */
+.agl-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0 16px;
+}
+ 
+/* ── Gráfico del Lote ── */
+.agl-grafico-card {
+  background: #fff;/* Blanco para el fondo del gráfico */
+  margin: 8px 8px 0;
+  border-radius: 8px;
+  padding: 8px 10px 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+ 
+.agl-grafico-titulo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 6px;
+  text-align: left;
+}
+ 
+.agl-grafico-barras {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  align-items: flex-end;
+  gap: 3px;
+  height: 130px;
+  border-bottom: 1px solid #999;
+  padding: 0 2px;
+}
+ 
+.agl-barra-item {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+}
+ 
+.agl-barra-valor {
+  font-size: 8px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  line-height: 1;
+  color: #333;
+}
+ 
+.agl-barra {
+  width: 100%;
+  max-width: 30px;
+  border-radius: 2px 2px 0 0;
+}
+ 
+.agl-barra-label {
+  font-size: 9px;
+  font-weight: 600;
+  margin-top: 3px;
+  color: #555;
+}
+ 
+/* ── Resumen ── */
+.agl-resumen {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: #fff;
+  margin: 6px 8px 0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+ 
+.agl-resumen-celda {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-right: 1px solid #eee;
+  text-align: center;
+}
+ 
+.agl-resumen-celda:last-child { border-right: none; }
+ 
+.agl-resumen-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #555;
+}
+ 
+.agl-resumen-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111;
+  margin-top: 2px;
+}
+
+/* ── Nota aclaratoria bajo el resumen del lote ── */
+.agl-resumen-nota {
+  margin: 4px 8px 0;
+  font-size: 10px;
+  color: #888;
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* ── Detalle por parcela ── */
+.agl-detalle {
+  margin: 6px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+ 
+.agl-parcela-row {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+ 
+/* Cabecera de columnas */
+.agl-parcela-header {
+  display: grid;
+  grid-template-columns: 34px 60px 44px 56px 62px 22px 28px;
+  align-items: center;
+  padding: 4px 8px 0;
+  gap: 3px;
+}
+ 
+.agl-ph-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #888;
+  text-align: center;
+}
+ 
+/* Datos */
+.agl-parcela-data {
+  display: grid;
+  grid-template-columns: 34px 60px 44px 56px 62px 22px 28px;
+  align-items: center;
+  padding: 3px 8px 6px;
+  gap: 3px;
+}
+ 
+.agl-pd-cos {
+  font-size: 10px;
+  font-weight: 700;
+  background: #f1f1f1;
+  border-radius: 4px;
+  text-align: center;
+  padding: 2px 0;
+}
+ 
+.agl-pd-lotpar {
+  font-size: 10px;
+  font-weight: 700;
+  background: #f1f1f1;
+  border-radius: 4px;
+  text-align: center;
+  padding: 2px 4px;
+}
+ 
+.agl-pd-val {
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  background: #f1f1f1;
+  border-radius: 4px;
+  padding: 2px 0;
+}
+ 
+.agl-indicador {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  justify-self: center;
+}
+ 
+.agl-btn-grafico {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: #16a34a; /* Verde agrícola */
+  color: #fff;/* Color blanco para el texto del botón */
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+}
+ 
+.agl-btn-grafico:active { opacity: 0.75; }
+ 
+/* ── Estados ── */
+.agl-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: #666;
+}
+ 
+.agl-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #eee;
+  border-top-color: #c90000;
+  border-radius: 50%;
+  animation: agl-spin 0.7s linear infinite;
+}
+ 
+@keyframes agl-spin { to { transform: rotate(360deg); } }
+ 
+.agl-error-msg { color: #c90000; font-weight: 700; }
+ 
+.agl-btn-sec {
+  padding: 8px 18px;
+  border: 1.5px solid #c90000;
+  border-radius: 8px;
+  background: #fff;
+  color: #c90000;
+  font-weight: 700;
+  cursor: pointer;
+}
+ 
+.agl-vacio {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 13px;
+  padding: 24px;
+  text-align: center;
+}
+ 
+/* ── Safe area ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .agl-scroll { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+}

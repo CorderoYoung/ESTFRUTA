@@ -42,12 +42,19 @@ export const guardarLocalmente = (registro) => {
     const id = registro.id || genId();
 
     const item = {
-      id,
-      ...registro,
-      uniqueKey: uniqueKey || registro.uniqueKey || null,
-      estadoSync: registro.estadoSync || 'PENDIENTE_SYNC',
-      fechaLocal: registro.fechaLocal || new Date().toISOString(),
-    };
+          id,
+          ...registro,
+          uniqueKey: uniqueKey || registro.uniqueKey || null,
+          estadoSync: registro.estadoSync || 'PENDIENTE_SYNC',
+          fechaLocal: registro.fechaLocal || new Date().toISOString(),
+          verificado: registro.verificado === true,
+        };
+
+        // Marca este registro como pendiente de verificación
+        window.sessionStorage.setItem(
+          'savedSamplingId',
+          id
+        );
 
     if (existingIndex >= 0) {
       registros[existingIndex] = {
@@ -77,11 +84,19 @@ export const obtenerRegistrosLocales = () => {
 };
 
 export const eliminarRegistroLocalById = (id) => {
+  const ts = new Date().toISOString();
+  console.log('[diag] eliminarRegistroLocalById START', ts, { id });
+  try {
+    console.log('[diag] eliminarRegistroLocalById STACK', new Error().stack);
+  } catch (e) {
+    // ignore
+  }
   try {
     const registros = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
     const nuevos = registros.filter((r) => r.id !== id);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevos));
     notifyAll();
+    console.log('[diag] eliminarRegistroLocalById END', new Date().toISOString(), { id });
   } catch (e) {
     console.error(e);
   }

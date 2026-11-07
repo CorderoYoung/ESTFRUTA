@@ -15,24 +15,38 @@ import EstimationSamplingPageTF from './pages/EstimationSamplingPageTF';
 import EstimationSamplingEditPage from './pages/EstimationSamplingEditPage';
 import PantallaConsultaEstFruta from './pages/PantallaConsultaEstFruta';
 import PantallaDatosGuardadosCelular from './pages/PantallaDatosGuardadosCelular';
+import PantallaEstimacionPorSeccion from './pages/PantallaEstimacionPorSeccion';
+import PantallaEstimacionPorGF from './pages/PantallaEstimacionPorGF';
+import PantallaAnalisisGF_Lote from './pages/PantallaAnalisisGF_Lote';
+import PantallaAnalisisParcelaDetalle from './pages/PantallaAnalisisParcelaDetalle';
 import RoleHomePage from './pages/RoleHomePage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { authenticateUser, getActiveUsers } from './services/authService';
-
+ 
+const SESSION_KEY = 'estfruta_session_user';
+ 
 function AuthApp() {
   const navigate = useNavigate();
   const location = useLocation();
-  const SESSION_KEY = 'estfruta_session_user';
   const [credentials, setCredentials] = useState({
     usuario: '',
     clave: '',
   });
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(SESSION_KEY);
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      return parsed?.Usuario && parsed?.Rol ? parsed : null;
+    } catch {
+      return null;
+    }
+  });
   const [isOnline, setIsOnline] = useState(window.navigator.onLine);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [users, setUsers] = useState([]);
-
+ 
   useEffect(() => {
     async function loadActiveUsers() {
       try {
@@ -42,87 +56,74 @@ function AuthApp() {
         setError('No se pudo cargar la tabla de acceso.');
       }
     }
-
+ 
     loadActiveUsers();
   }, []);
-
-  useEffect(() => {
-    const stored = window.sessionStorage.getItem(SESSION_KEY);
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored);
-      if (parsed && parsed.Usuario && parsed.Rol) {
-        setCurrentUser(parsed);
-      }
-    } catch {
-      // ignore invalid session
-    }
-  }, []);
-
+ 
   useEffect(() => {
     function handleOnline() {
       setIsOnline(true);
     }
-
+ 
     function handleOffline() {
       setIsOnline(false);
     }
-
+ 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
+ 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
+ 
   function onInputChange(event) {
     const { name, value } = event.target;
     setCredentials((current) => ({ ...current, [name]: value }));
   }
-
+ 
   async function onValidate() {
     if (!isOnline) {
       setError('Sin conexion. Verifique red para validar.');
       return;
     }
-
+ 
     setIsLoading(true);
     setError('');
-
+ 
     const result = await authenticateUser(credentials);
-
+ 
     if (!result.success) {
       setError(result.error);
       setCredentials((current) => ({ ...current, clave: '' }));
       setIsLoading(false);
       return;
     }
-
+ 
     setCurrentUser(result.user);
-    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(result.user));
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(result.user));
     setCredentials((current) => ({ ...current, clave: '' }));
     navigate(result.redirectPath, { replace: true });
     setIsLoading(false);
   }
-
+ 
   function onExit() {
+    window.localStorage.removeItem(SESSION_KEY);
     setCurrentUser(null);
-    window.sessionStorage.removeItem(SESSION_KEY);
     setCredentials({ usuario: '', clave: '' });
     setError('');
     navigate('/login', { replace: true });
   }
-
+ 
   const rolePath = currentUser ? ROLE_ROUTES[currentUser.Rol] : null;
   const shouldGoToRolePath = Boolean(
     currentUser && location.pathname === '/login' && rolePath
   );
-
+ 
   return (
   <Routes>
-
+ 
     <Route
       path="/login"
       element={
@@ -142,33 +143,8 @@ function AuthApp() {
         )
       }
     />
-
-    {ROLE_OPTIONS.map((role) => {
-      const path = ROLE_ROUTES[role];
-
-      return (
-        <Route
-          key={role}
-          element={
-            <ProtectedRoute
-              user={currentUser}
-              allowedRoles={[role]}
-            />
-          }
-        >
-          <Route
-            path={path}
-            element={
-              <PantallaConsultaEstFruta
-                user={currentUser}
-                onLogout={onExit}
-              />
-            }
-          />
-        </Route>
-      );
-    })}
-
+ 
+ 
     <Route
       element={
         <ProtectedRoute
@@ -177,7 +153,57 @@ function AuthApp() {
         />
       }
     >
-
+      <Route
+        path="/estimaciones"
+        element={
+          <PantallaConsultaEstFruta
+            user={currentUser}
+            onLogout={onExit}
+          />
+        }
+      />
+    </Route>
+ 
+    <Route
+      element={
+        <ProtectedRoute
+          user={currentUser}
+          allowedRoles={[...ROLE_OPTIONS]}
+        />
+      }
+    >
+ 
+        <Route
+          path="/estimaciones/seccion/:id"
+          element={
+            <PantallaEstimacionPorSeccion
+              user={currentUser}
+              onLogout={onExit}
+            />
+          }
+        />
+        <Route
+          path="/estimaciones/gf"
+          element={
+            <PantallaEstimacionPorGF
+              user={currentUser}
+              onLogout={onExit}
+            />
+          }
+        />
+        <Route
+          path="/estimaciones/analisis"
+          element={
+            <PantallaAnalisisGF_Lote
+              user={currentUser}
+              onLogout={onExit}
+            />
+          }
+        />
+        <Route
+          path="/estimaciones/analisis/parcela/:id"
+          element={<PantallaAnalisisParcelaDetalle />}
+        />
         <Route
           path="/estimaciones/nueva"
           element={
@@ -197,13 +223,13 @@ function AuthApp() {
           element={<PantallaDatosGuardadosCelular />}
         />
       </Route>
-
+ 
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }
-
+ 
 function App() {
   return (
     <BrowserRouter>
@@ -211,5 +237,5 @@ function App() {
     </BrowserRouter>
   );
 }
-
+ 
 export default App;

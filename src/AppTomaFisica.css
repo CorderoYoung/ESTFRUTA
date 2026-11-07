@@ -12,6 +12,22 @@
   gap: 6px;
 }
 
+/* FRANJA VERDE DE LADA A LADO */
+.sampling-shell__header {
+  width: 100%;
+  min-height: 58px;
+
+  margin: 0;
+  padding: 8px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: #15803d; 
+  box-sizing: border-box;
+}
+
 /* ========================================
    TARJETA
 ======================================== */
@@ -74,7 +90,7 @@
 ======================================== */
 
 .sampling-tile__count {
-  font-size: 8px;  /* Valor más grande */
+  font-size: 12px;  /* Valor más grande */
   font-weight: 700; /* Negrita para destacar */
   text-align: center;
   color: #c9171f;
@@ -119,6 +135,94 @@
   font-weight: 700; /* Negrita para el símbolo del botón */
 
   cursor: pointer; /* Cambia el cursor al pasar sobre el botón */
+}
+
+/* ========================================
+   BOTON +
+======================================== */
+
+.sampling-tap--plus {
+
+  width: 30px;
+
+  height: 28px;
+
+  border-radius: 7px;
+
+  background: linear-gradient(135deg, #16a34a, #15803d);
+
+  color: #fff;
+
+  font-size: 20px;
+
+  font-weight: 800;
+
+  box-shadow: 0 2px 6px rgba(22,163,74,0.25);
+}
+
+.sampling-tap--plus:hover {
+
+  background: linear-gradient(135deg, #22c55e, #15803d);
+}
+
+/* ========================================
+   FOOTER CREAR REGISTRO
+======================================== */
+
+.sampling-shell__footer {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+
+  height: 50px;              /* antes 35px */
+  padding-right: 12px;
+  padding-bottom: 2px;       /* no dejar en 0 */
+  padding-left: 12px;
+
+  padding-top: 6px;          /* separa el botón de la línea horizontal */
+  
+}
+
+/* ========================================
+   BOTON CREAR REGISTRO
+======================================== */
+
+.sampling-footer__primary {
+
+  width: 60%;
+
+  max-width: 320px;
+
+  height: 35px; /* MÁS BAJITO */
+
+  border: none;
+
+  border-radius: 18px;
+
+  background: linear-gradient(135deg, #16a34a, #15803d);
+
+  color: white;
+
+  font-size: 15px;
+
+  font-weight: 700;
+
+  transition: all 0.18s ease;
+}
+
+/* ========================================
+   BOTON DESACTIVADO CREAR REGISTRO
+======================================== */
+
+.sampling-footer__primary:disabled {
+
+  background: #d1d5db;
+
+  color: #6b7280;
+
+  opacity: 0.9;
+
+  cursor: not-allowed;
 }
 
 /* PLUS */

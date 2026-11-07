@@ -1,0 +1,424 @@
+/* ─── Page shell ─────────────────────────────────────────────────────────── */
+.papd-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh; /* usa la altura visible real en móviles cuando está disponible */
+  background: #f3f4f6;
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+/* ─── Header ─────────────────────────────────────────────────────────────── */
+.papd-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #15803d; /* Verde agrícola */
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.papd-back {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.papd-header-titles {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.papd-header-titles h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.papd-header-titles span {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+
+
+/* ─── Scroll wrapper ─────────────────────────────────────────────────────── */
+.papd-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* permite que los hijos con flex puedan crecer/encajar correctamente */
+  gap: 8px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+/* ─── Cards genéricas ────────────────────────────────────────────────────── */
+.papd-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.papd-card-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #6b7280;/* Gris oscuro para el título */
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+/* ─── Encabezado compacto tipo tabla con línea horizontal visible ───────── */
+.papd-encabezado-compacto {
+  position: relative;
+  background: #fff;/* Fondo blanco para que la línea horizontal se destaque claramente */
+  padding: 6px 8px 8px;
+  box-shadow: none;
+  border-radius: 0;
+  border-bottom: none !important;
+  margin-bottom: 2px; /* Pequeño margen para separar del contenido siguiente */
+}
+
+/* Línea horizontal inferior visible */
+.papd-encabezado-compacto::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: #d1d5db;
+}
+
+.papd-enc-grid-compacto {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  row-gap: 5px;
+  column-gap: 4px;
+}
+
+.papd-enc-grid-compacto div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  line-height: 1.05; /* Reduce el espacio entre líneas para que sea más compacto */
+  min-width: 0;
+}
+
+.papd-enc-grid-compacto span {
+  font-size: 10px; /* Más pequeño que el valor normal */
+  font-weight: 700; /* Más pequeño que el encabezado normal */
+  color: #991b1b;
+  white-space: nowrap;
+}
+
+.papd-enc-grid-compacto strong {
+  font-size: 12px; /* Más pequeño que el valor normal */
+  font-weight: 600; /* Más pequeño que el encabezado normal */
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ─── Cards de gráficos (Cajas por Tamaño y Motivos de No Empaque) ────────
+   Ambas comparten esta clase para crecer EXACTAMENTE igual y repartirse
+   el espacio vertical sobrante de la pantalla. ─────────────────────────── */
+.papd-card--grafico {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.papd-card--grafico .papd-barras-wrap {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.papd-card--grafico .papd-empty-chart {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+/* ─── Sección enc ────────────────────────────────────────────────────────── */
+.papd-enc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 8px;
+}
+
+.papd-enc-item { display: flex; flex-direction: column; }
+.papd-enc-label { font-size: 9px; font-weight: 700; color: #9ca3af; text-transform: uppercase; }
+.papd-enc-val   { font-size: 13px; font-weight: 700; color: #111827; }
+
+/* ─── Sección 2: Resumen ─────────────────────────────────────────────────── */
+.papd-resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.papd-resumen-celda {
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.papd-resumen-label { font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase; }
+.papd-resumen-val   { font-size: 18px; font-weight: 800; color: #111827; }
+.papd-resumen-ha    { grid-column: 1 / -1; }
+
+/* ─── Gráficos de barras ─────────────────────────────────────────────────── */
+.papd-barras-wrap {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  min-height: 90px;
+  gap: 4px;
+  padding-top: 20px;
+}
+
+.papd-barra-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.papd-barra-valor {
+  font-size: 8px;
+  font-weight: 700;
+  color: #374151;
+  text-align: center;
+  line-height: 1;
+  min-height: 10px;
+}
+
+.papd-barra {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  min-height: 4px;
+  transition: height 0.3s ease;
+}
+
+.papd-barra-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: #4b5563;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ─── Tabla horizontal porcentajes — SIEMPRE ancho completo ─────────────── */
+.papd-pct-table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.papd-pct-table th,
+.papd-pct-table td {
+  text-align: center;
+  padding: 4px 0;
+  border: 1px solid #e5e7eb;
+  width: 12.5%;
+  font-size: 10px;
+}
+
+.papd-pct-table th {
+  font-weight: 800;
+  color: #fff;
+  font-size: 9px;
+}
+
+.papd-pct-table td {
+  font-weight: 700;
+  color: #111827;
+  background: #f9fafb;
+}
+
+/* ─── Sección 5: Grupos ──────────────────────────────────────────────────── */
+.papd-grupos {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+}
+
+.papd-grupo-celda {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 8px 4px;
+}
+
+.papd-grupo-label { font-size: 9px; font-weight: 700; color: #6b7280; text-transform: uppercase; }
+.papd-grupo-val   { font-size: 20px; font-weight: 800; color: #111827; }
+
+/* ─── Divisor ────────────────────────────────────────────────────────────── */
+.papd-divisor {
+  border: none;
+  border-top: 2px solid #e5e7eb;
+  margin: 2px 0;
+}
+
+/* ─── Loading / Error ────────────────────────────────────────────────────── */
+.papd-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+  padding: 40px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.papd-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #dc2626;
+  border-radius: 50%;
+  animation: papd-spin 0.7s linear infinite;
+}
+
+@keyframes papd-spin {
+  to { transform: rotate(360deg); }
+}
+
+.papd-error-msg {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+/* ─── RESPONSIVE CELULAR ─────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+
+  .papd-header        { padding: 6px 10px; gap: 8px; }
+  .papd-back          { width: 28px; height: 28px; font-size: 15px; }
+  .papd-header-titles h1   { font-size: 13px; }
+  .papd-header-titles span { font-size: 11px; }
+
+  .papd-scroll { gap: 6px; padding: 6px 8px; }
+  
+  .papd-card       { padding: 8px 10px; border-radius: 10px; }
+  .papd-card-title { font-size: 10px; margin-bottom: 6px; }
+
+  .papd-resumen-grid  { gap: 6px; }
+  .papd-resumen-celda { padding: 6px 8px; border-radius: 6px; }
+  .papd-resumen-label { font-size: 8px; }
+  .papd-resumen-val   { font-size: 15px; }
+
+  /* Gráficos más compactos en celular — el alto lo define el flex de
+     papd-card--grafico, aquí solo se reduce el padding superior y el
+     tamaño de los textos para que entren más barras */
+  .papd-barras-wrap { padding-top: 14px; gap: 3px; min-height: 70px; }
+  .papd-barra-valor { font-size: 7px; min-height: 8px; }
+  .papd-barra-label { font-size: 7px; }
+
+  /* Tabla — ancho completo garantizado en celular */
+  .papd-pct-table {
+    width: 100%;
+    min-width: 100%;
+    table-layout: fixed;
+  }
+
+  .papd-pct-table th,
+  .papd-pct-table td {
+    padding: 3px 0;
+    font-size: 8px;
+    width: 12.5%;
+  }
+
+  .papd-grupos      { gap: 5px; }
+  .papd-grupo-celda { padding: 5px 4px; border-radius: 6px; gap: 1px; }
+  .papd-grupo-label { font-size: 8px; }
+  .papd-grupo-val   { font-size: 16px; }
+
+  .papd-divisor { margin: 0; }
+
+}
+
+/* ─── Resumen compacto en 3 columnas ───────────────────────────── */
+.papd-summary-card {
+  padding: 10px 14px !important;
+  border-radius: 12px;
+}
+
+.papd-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: center;
+}
+
+.papd-summary-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #e5e7eb;
+  text-align: center;
+  min-width: 0;
+}
+
+.papd-summary-cell:last-child {
+  border-right: none;
+}
+
+.papd-summary-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: #6b7280;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.papd-summary-value {
+  font-size: 17px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1;
+}

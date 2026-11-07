@@ -1,5 +1,5 @@
 import '../AppConsultaEdicion.css';
-
+ 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -29,6 +29,12 @@ import {
   shouldRestoreDetalle,
 } from '../services/operationalDraftStorage';
 import { requestCreateEstimation, requestUpdateEstimation } from '../services/estimationService';
+import { ROLES } from '../constants/roles';
+
+// ─────────────────────────────────────────────
+// Constante de clave de sesión (igual que en el resto de la app)
+// ─────────────────────────────────────────────
+const SESSION_KEY = 'estfruta_session_user';
 
 function toApiDetalle(rows) {
   return rows.map(({ tipoLinea, codigoClasificacion, cantidadDelta }) => ({
@@ -37,7 +43,7 @@ function toApiDetalle(rows) {
     cantidadDelta,
   }));
 }
-
+ 
 function readStoredHeader() {
   try {
     const raw = window.sessionStorage.getItem(ESTIMACION_HEADER_STORAGE_KEY);
@@ -49,135 +55,229 @@ function readStoredHeader() {
   }
   return null;
 }
-
+ 
+function normalizeFirebaseHeader(data) {
+  if (!data || typeof data !== 'object') return null;
+  const ptasMuesValue =
+    data.PtasMues ?? data.PtasMuestras ?? data.ptasMues ?? data.ptasMues ?? '';
+ 
+  return {
+    Cosecha: data.Cosecha || data.cosecha || data.pc || '',
+    Tipo: data.Tipo || data.tipo || '',
+    Semana: data.Semana || data.semana || '',
+    Forza: data.Forza || data.forza || '',
+    Lote: data.Lote || data.lote || '',
+    Parcela: data.Parcela || data.parcela || data.seccion || '',
+    Poblacion: data.Poblacion || data.poblacion || '',
+    PtasEstac: data.PtasEstac || data.ptasEstac || '',
+    PtasMues: ptasMuesValue,
+    Area: data.Area || data.area || '',
+    GF:
+      data.GF || data.gf ||
+      deriveGf(data.Forza ?? data.forza, data.Semana ?? data.semana) || '',
+  };
+}
+ 
 // PHASE 2: Load from route or Firebase, not from drafts
 function initialHeaderFromRoute(location) {
   if (location.state?.header) return location.state.header;
-  // PHASE 2: Draft loading disabled
-  // const draft = loadOperationalDraft();
-  // if (draft?.header?.gf || draft?.header?.GF) return draft.header;
-  // Fallback to sessionStorage (will be removed in Phase 4)
   return readStoredHeader();
 }
-
-function EstimationSamplingEditPage() { 
+ 
+function EstimationSamplingEditPage({ user }) { 
   const { id } = useParams(); 
   const navigate = useNavigate(); 
   const location = useLocation();
   const [header, setHeader] = useState(null);
-  console.log('HEADER TF', header);
-  const [editMode, setEditMode] = useState(false);
+        console.log('HEADER TF', header);
 
+  // ─────────────────────────────────────────────
+  // Resolver rol: prop user tiene prioridad; si no llega, leer localStorage
+  // ─────────────────────────────────────────────
+  const resolvedUser = user ?? (() => {
+    try {
+      const stored = window.localStorage.getItem(SESSION_KEY);
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      return parsed?.Usuario && parsed?.Rol ? parsed : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const rol = resolvedUser?.Rol?.trim();
+
+  /**
+   * Solo Supervisor Estimacion puede editar, guardar, eliminar y aprobar.
+   * Todos los demás roles solo pueden consultar (botón Volver habilitado).
+   */
+  const isSupervisorEstimacion = rol === ROLES.SUPERVISOR_ESTIMACION;
+
+  // Estado de modo edición: empieza en false; solo Supervisor Estimacion puede activarlo.
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Estado de aprobación local: se inicializa desde Firebase al cargar el registro.
+  // Refleja el campo `verificado` del documento.
+  const [isVerificado, setIsVerificado] = useState(false);
+
+  // ─────────────────────────────────────────────
+  // handleSave: bloqueado si no es Supervisor Estimacion o no está en modo edición.
+  // Valida que Total == PtasMues antes de guardar.
+  // ─────────────────────────────────────────────
   const handleSave = async () => {
+    if (!isSupervisorEstimacion || !isEditing) return;
+
+    // Validación: Total debe ser igual a PtasMues
+    // Se usa comparación numérica directa como doble seguro,
+    // independientemente de lo que devuelva canCreateEstimationRecord.
+    const ptasMuesNum = Number(header?.PtasMues) || 0;
+    if (safeFrutasTotales !== ptasMuesNum) {
+      alert(
+        `El Total de Muestras (${safeFrutasTotales}) debe ser igual a las Plantas Muestreadas (${ptasMuesNum}). Corrija los conteos antes de guardar.`
+      );
+      return;
+    }
 
     try {
-
       const payload = {
         ...header,
         detalle,
         actualizadoEn: new Date(),
-        GF: header?.GF || deriveGf(header?.Forza ?? header?.forza, header?.Semana ?? header?.semana) || '',
+        GF:
+          header?.GF ||
+          deriveGf(
+            header?.Forza ?? header?.forza,
+            header?.Semana ?? header?.semana
+          ) || '',
       };
-
-      console.log('PAYLOAD FINAL FIREBASE', JSON.stringify(payload, null, 2));
+ 
+      console.log(
+        'PAYLOAD FINAL FIREBASE',
+        JSON.stringify(payload, null, 2)
+      );
+ 
       console.log('GF MINUSCULA:', payload.gf);
-
+ 
       const finalPayload = { ...payload };
+ 
       if ('gf' in finalPayload) {
         delete finalPayload.gf;
       }
-      console.log('PAYLOAD FINAL FIREBASE', JSON.stringify(finalPayload, null, 2));
+ 
+      console.log(
+        'PAYLOAD FINAL FIREBASE',
+        JSON.stringify(finalPayload, null, 2)
+      );
+ 
+      await updateDoc(
+        doc(db, 'estimaciones', id),
+        finalPayload
+      );
+ 
+      // Guarda ID del registro salvado
+      sessionStorage.setItem('savedSamplingId', id);
+ 
+      alert('Cambios guardados');
+ 
+    } catch (error) {
+      console.error(error);
+      alert('Error al guardar');
+    }
+  };
 
-      await updateDoc(doc(db, 'estimaciones', id), finalPayload);
+  // ─────────────────────────────────────────────
+  // handleAprobar: escribe verificado:true en Firebase.
+  // Solo disponible para Supervisor Estimacion cuando Total == PtasMues.
+  // ─────────────────────────────────────────────
+  const handleAprobar = async () => {
+    if (!isSupervisorEstimacion) return;
 
-          alert('Cambios guardados');
+    // Validación: no se puede aprobar si Total != PtasMues
+    // Se usa comparación numérica directa como doble seguro.
+    const ptasMuesNumApr = Number(header?.PtasMues) || 0;
+    if (safeFrutasTotales !== ptasMuesNumApr) {
+      alert(
+        `No se puede aprobar. El Total de Muestras (${safeFrutasTotales}) debe ser igual a las Plantas Muestreadas (${ptasMuesNumApr}).`
+      );
+      return;
+    }
 
-        } catch (error) {
+    try {
+      await updateDoc(doc(db, 'estimaciones', id), {
+        verificado: true,
+        aprobadoPor: resolvedUser?.Usuario ?? 'Supervisor',
+        aprobadoEn: new Date(),
+      });
 
-          console.error(error);
+      setIsVerificado(true);
+      alert('Registro aprobado correctamente.');
+      navigate('/estimaciones');
+    } catch (error) {
+      console.error('Error al aprobar:', error);
+      alert('Error al aprobar el registro: ' + (error?.message || String(error)));
+    }
+  };
 
-          alert('Error al guardar');
-
-        }
-
-      };
-    
+  // ─────────────────────────────────────────────
+  // handleDelete: bloqueado si no es Supervisor Estimacion o no está en modo edición
+  // ─────────────────────────────────────────────
   const handleDelete = async () => {
+    if (!isSupervisorEstimacion || !isEditing) return;
+
     console.log('handleDelete invoked');
     console.log('handleDelete id:', id);
-
+ 
     const confirmar = window.confirm('¿Está seguro de eliminar este registro?');
     if (!confirmar) {
       console.log('handleDelete: user cancelled');
       return;
     }
     console.log('handleDelete: user confirmed');
-
+ 
     try {
       const reference = doc(db, 'estimaciones', id);
       console.log('handleDelete: deleting doc ref', reference);
       await deleteDoc(reference);
       console.log('handleDelete: deletion successful for id', id);
       alert('Registro eliminado');
-      navigate('/consulta-est-fruta');
+      navigate('/estimaciones');
     } catch (error) {
       console.error('handleDelete: error deleting document', error);
       alert('Error al eliminar: ' + (error?.message || String(error)));
     }
   };
-
+ 
   /*const [tab, setTab] = useState('sizes');*/
   const [submitMessage, setSubmitMessage] = useState('');
   const restoredRef = useRef(false);
-
+ 
   const cargarRegistroFirebase = async () => {
-
     try {
-
       console.log('ID recibido:', id);
-
+ 
       const ref = doc(db, 'estimaciones', id);
-
       const snapshot = await getDoc(ref);
-
+ 
       if (snapshot.exists()) {
-
         const data = snapshot.data();
-
-        setHeader({
-          Cosecha: data.Cosecha || '',
-          Tipo: data.Tipo || '',
-          Semana: data.Semana || '',
-          Forza: data.Forza || '',
-          Lote: data.Lote || '',
-          Parcela: data.Parcela || '',
-          Poblacion: data.Poblacion || '',
-          PtasEstac: data.PtasEstac || '',
-          PtasMues: data.PtasMues || '',
-          Area: data.Area || '',
-          GF: data.GF || '',
-        });
-
-        
+        setHeader(normalizeFirebaseHeader(data));
         console.log("DATA COMPLETA:", data);
 
+        // Leer el campo verificado existente en Firebase
+        setIsVerificado(data.verificado === true);
+ 
         if (Array.isArray(data?.detalle)) {
           replaceDetalle(data.detalle);
         }
       } else {
-
         console.log('No existe registro');
-
       }
-
     } catch (error) {
-
       console.error('ERROR FIREBASE:', error);
       alert(error.message);
     }
-
   };
-
+ 
   useEffect(() => {
     if (!id) {
       navigate('/estimaciones/nueva', { replace: true });
@@ -185,7 +285,7 @@ function EstimationSamplingEditPage() {
     }
     cargarRegistroFirebase();
   }, [id, navigate]);
-
+ 
   const {
     detalle,
     aggregates,
@@ -197,7 +297,7 @@ function EstimationSamplingEditPage() {
     replaceDetalle,
     TIPO_LINEA,
   } = useEstimacionDetalle();
-
+ 
   const handleCountChange = (
     tipoLinea,
     codigoClasificacion,
@@ -205,24 +305,24 @@ function EstimationSamplingEditPage() {
   ) => {
     const value = Number(nuevoValor);
     const cantidad = Number.isFinite(value) && value >= 0 ? Math.trunc(value) : 0;
-
+ 
     console.log('handleCountChange:', {
       tipoLinea,
       codigoClasificacion,
       nuevoValor,
       value,
       cantidad,
-      editMode,
+      isEditing,
     });
-
+ 
     setCountFor(tipoLinea, codigoClasificacion, cantidad);
   };
-
+ 
   const persistDraft = useCallback(() => {
     if (!header || typeof header !== 'object') return;
     saveOperationalDraft({ header, detalle });
   }, [header, detalle, /* tab */]);
-
+ 
   useDebouncedEffect(
     () => {
       persistDraft();
@@ -230,7 +330,7 @@ function EstimationSamplingEditPage() {
     [header, detalle, ],
     280
   );
-
+ 
   useEffect(() => {
     function flush() {
       persistDraft();
@@ -245,7 +345,7 @@ function EstimationSamplingEditPage() {
       window.removeEventListener('pagehide', flush);
     };
   }, [persistDraft]);
-
+ 
   const ptasMuestras = header?.PtasMues ?? '';
   const { frutasEmpacables, frutasNoEmpacables, frutasTotales } = aggregates;
       // Defensive destructuring: avoid crash if `aggregates` is unexpectedly undefined
@@ -264,23 +364,24 @@ function EstimationSamplingEditPage() {
       } catch (err) {
         renderErrorRef.current = err;
       }
-  const PtasMuest = header?.PtasMues;
+  // Normalizar a número para evitar comparación string vs number
+  // (cuando el Supervisor edita el campo PtMue desde un <input>, el valor
+  // llega como string; safeFrutasTotales siempre es number).
+  const PtasMuest = Number(header?.PtasMues) || 0;
   const headerGf = header?.GF;
-
+ 
   const countsMatch = canCreateEstimationRecord({
       PtasMuest,
       frutasTotales: safeFrutasTotales,
         });
   // Allow saving even if GF is not present (backwards-compatible)
   const canSave = Boolean(header) && countsMatch;
-
+ 
   const ptasParsed = parseCount(PtasMuest);
-
+ 
   const showMismatchHint =
         ptasParsed !== null && !countsMatch;
-  
-  
-
+ 
   const mergePayload = useCallback(() => {
       if (!header) return null;
       return {
@@ -289,18 +390,18 @@ function EstimationSamplingEditPage() {
         detalle: toApiDetalle(detalle),
       };
     }, [header, detalle]);
-
+ 
     async function handleCrearRegistro() {
       setSubmitMessage('');
       persistDraft();
   const payload = mergePayload();
       if (!payload) return;
-
+ 
     // PHASE 3: Use UPDATE if editing existing document, CREATE if new
   const result = id
       ? await requestUpdateEstimation(id, payload)
       : await requestCreateEstimation(payload);
-
+ 
     if (!result.success) {
       setSubmitMessage(result.errors.join(' '));
       return;
@@ -313,12 +414,12 @@ function EstimationSamplingEditPage() {
     }
     setSubmitMessage('Validacion correcta (demo). Listo para API.');
   }
-
+ 
   function handleVolverCabecera() {
     persistDraft();
     navigate('/estimaciones/nueva', { replace: true });
   }
-
+ 
   function handleLimpiarConteos() {
     resetDetalle();
     setSubmitMessage('');
@@ -326,16 +427,16 @@ function EstimationSamplingEditPage() {
       saveOperationalDraft({ header, detalle: [],  });
     }
   }
-
+ 
   const contextLine = useMemo(() => {
     if (!header) return '';
-    return `${header.Tipo} · ${header.Cosecha} · ${header.Lote} - ${header.Semana}`;
+    return `${header.Cosecha} - ${header.Lote} - ${header.Parcela} - ${header.Area}`;
   }, [header]);
-
+ 
   if (!header) {
     return null;
   }
-
+ 
   if (renderErrorRef.current) {
     return (
       <div style={{ padding: 20, color: 'red' }}>
@@ -346,51 +447,147 @@ function EstimationSamplingEditPage() {
       </div>
     );
   }
-
+ 
   return (
     <div className="sampling-shell">
       <header className="sampling-shell__header">
+        {/* ── Botón Volver: siempre habilitado para todos los roles ── */}
         <button
           className="sampling-back-button"
-          onClick={() => navigate('/consulta-est-fruta')}
+          onClick={async () => {
+            // Marcar como verificado:true al regresar (comportamiento existente)
+            if (id) {
+              try {
+                await updateDoc(doc(db, 'estimaciones', id), { verificado: true });
+              } catch (err) {
+                console.error('Error marcando verificado:', err);
+              }
+            }
+            navigate(-1);
+          }}
         >
           ⬅ 
         </button>
         <div className="sampling-shell__context" title={contextLine}>
           {contextLine}
         </div>
-        <button
+
+        {/* ── Botón Salvar (💾):
+              Visible solo para Supervisor Estimacion.
+              Habilitado solo cuando isSupervisorEstimacion && isEditing.
+              Si Total != PtasMues, muestra alerta y no guarda. ── */}
+        {isSupervisorEstimacion && (
+          <button
             type="button"
             className="sampling-save-button"
             onClick={handleSave}
+            disabled={!isEditing}
+            title={
+              !isEditing
+                ? 'Active el modo edición con el lápiz para guardar'
+                : !countsMatch
+                ? 'Total debe ser igual a PtasMues para guardar'
+                : 'Guardar cambios'
+            }
+            style={{
+              opacity: !isEditing ? 0.4 : 1,
+              cursor: !isEditing ? 'not-allowed' : 'pointer',
+            }}
           >
             💾
           </button>
-      </header>
+        )}
 
+        {/* ── Botón Aprobar (✅):
+              Visible solo para Supervisor Estimacion.
+              Habilitado solo cuando countsMatch (Total == PtasMues).
+              Escribe verificado:true en Firebase y navega a /estimaciones. ── */}
+        {isSupervisorEstimacion && (
+          <button
+            type="button"
+            onClick={handleAprobar}
+            disabled={!countsMatch}
+            title={
+              !countsMatch
+                ? 'Total debe ser igual a PtasMues para aprobar'
+                : isVerificado
+                ? 'Este registro ya fue aprobado'
+                : 'Aprobar registro'
+            }
+            style={{
+              width: 34,
+              height: 34,
+              border: 'none',
+              borderRadius: 8,
+              background: isVerificado ? '#166534' : countsMatch ? '#16a34a' : '#6b7280',
+              color: '#fff',
+              fontSize: 16,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: !countsMatch ? 'not-allowed' : 'pointer',
+              opacity: !countsMatch ? 0.5 : 1,
+              flexShrink: 0,
+            }}
+          >
+            ✓
+          </button>
+        )}
+      </header>
+ 
       <div className="consulta-footer-actions">
 
-        <button
-          type="button"
-          className="consulta-footer-btn consulta-footer-delete"
-          onClick={handleDelete}
-        >
-          🗑️
-        </button>
+        {/* ── Botón Eliminar (🗑️):
+              Visible solo para Supervisor Estimacion.
+              Habilitado solo cuando isSupervisorEstimacion && isEditing. ── */}
+        {isSupervisorEstimacion && (
+          <button
+            type="button"
+            className="consulta-footer-btn consulta-footer-delete"
+            onClick={handleDelete}
+            disabled={!isEditing}
+            title={
+              !isEditing
+                ? 'Active el modo edición con el lápiz para eliminar'
+                : 'Eliminar registro'
+            }
+            style={{
+              opacity: !isEditing ? 0.4 : 1,
+              cursor: !isEditing ? 'not-allowed' : 'pointer',
+            }}
+          >
+            🗑️
+          </button>
+        )}
 
-        <button
-          className="consulta-footer-btn consulta-footer-edit"
-          onClick={() => setEditMode(true)}
-        >
-          🖊
-        </button>
+        {/* ── Botón Lápiz Editar (✏️):
+              Visible solo para Supervisor Estimacion.
+              Al hacer clic activa isEditing = true. ── */}
+        {isSupervisorEstimacion && (
+          <button
+            className="consulta-footer-btn consulta-footer-edit"
+            onClick={() => setIsEditing(true)}
+            title={
+              isEditing
+                ? 'Modo edición activo'
+                : 'Activar modo edición'
+            }
+            style={{
+              opacity: isEditing ? 0.5 : 1,
+              cursor: isEditing ? 'default' : 'pointer',
+            }}
+          >
+            ✏️
+          </button>
+        )}
 
       </div>
       
       <p className="sampling-autosave-hint" aria-live="polite">
         Consulta / Edición  
       </p>
-
+ 
       <div className="sampling-shell__metrics" aria-live="polite">
         <div className="sampling-metric">
           <span className="sampling-metric__label">Empac.</span>
@@ -409,28 +606,30 @@ function EstimationSamplingEditPage() {
           <span className="sampling-metric__value">{ptasMuestras || '—'}</span>
         </div>
       </div>
-
+ 
       {showMismatchHint ? (
         <p className="sampling-shell__hint sampling-shell__hint--error" role="alert">
           Total debe igualar PtasMues ({ptasMuestras}).
         </p>
       ) : null}
-
-
+ 
+ 
       <div
         className="sampling-shell__panel"
         role="tabpanel"
         
       >
         
-
+ 
         <div className="sampling-header-section">
-
+ 
   <div className="sampling-header-grid sampling-header-grid--top">
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">Cosec</span>
-      {editMode ? (
+      {/* Los inputs de edición de campos del header solo se muestran
+          cuando isSupervisorEstimacion && isEditing */}
+      {isSupervisorEstimacion && isEditing ? (
         <input
           className="sampling-tile-readonly__input"
           value={header?.Cosecha || ''}
@@ -447,10 +646,10 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">Tipo</span>
-      {editMode ? (
+      {isSupervisorEstimacion && isEditing ? (
         <input
           className="sampling-tile-readonly__input"
           value={header?.Tipo || ''}
@@ -467,11 +666,11 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">Sem</span>
-
-      {editMode ? (
+ 
+      {isSupervisorEstimacion && isEditing ? (
         <input
           className="sampling-tile-readonly__input"
           value={header?.Semana || ''}
@@ -488,11 +687,11 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">Forza</span>
-
-      {editMode ? (
+ 
+      {isSupervisorEstimacion && isEditing ? (
       <input
         className="sampling-tile-readonly__input"
         value={header?.Forza || ''}
@@ -509,11 +708,11 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">Lote</span>
-
-      {editMode ? (
+ 
+      {isSupervisorEstimacion && isEditing ? (
         <input
           className="sampling-tile-readonly__input"
           value={header?.Lote || ''}
@@ -530,10 +729,10 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">Parc</span>
-      {editMode ? (
+      {isSupervisorEstimacion && isEditing ? (
         <input
           className="sampling-tile-readonly__input"
           value={header?.Parcela || ''}
@@ -550,13 +749,14 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
   </div>
-
+ 
   <div className="sampling-header-grid sampling-header-grid--bottom">
-
+ 
     <div className="sampling-header-item">
-      <span className="sampling-header-label">Pobl</span>{editMode ? (
+      <span className="sampling-header-label">Pobl</span>
+      {isSupervisorEstimacion && isEditing ? (
       <input
         className="sampling-tile-readonly__input"
         value={header?.Poblacion || ''}
@@ -573,10 +773,10 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">PtasEst</span>
-      {editMode ? (
+      {isSupervisorEstimacion && isEditing ? (
       <input
         className="sampling-tile-readonly__input"
         value={header?.PtasEstac || ''}
@@ -593,10 +793,10 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">PtMue</span>
-      {editMode ? (
+      {isSupervisorEstimacion && isEditing ? (
         <input
           className="sampling-tile-readonly__input"
           value={header?.PtasMues || ''}
@@ -613,10 +813,10 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">Área</span>
-      {editMode ? (
+      {isSupervisorEstimacion && isEditing ? (
       <input
         className="sampling-tile-readonly__input"
         value={header?.Area || ''}
@@ -633,11 +833,11 @@ function EstimationSamplingEditPage() {
       </span>
       )}
     </div>
-
+ 
     <div className="sampling-header-item">
       <span className="sampling-header-label">GF</span>
-
-      {editMode ? (
+ 
+      {isSupervisorEstimacion && isEditing ? (
         <input
           className="sampling-tile-readonly__input"
           value={header?.GF || ''}
@@ -654,13 +854,13 @@ function EstimationSamplingEditPage() {
         </span>
       )}
     </div>
-
+ 
   </div>
-
+ 
 </div>
-
+ 
       <hr className="sampling-divider" />
-
+ 
           <div className="sampling-grid-sizes">
             {FRUIT_SIZE_CODES.map((code) => (
             <SamplingCounterTileConsultaEdicion
@@ -668,8 +868,9 @@ function EstimationSamplingEditPage() {
               label={code}
               count={countFor(TIPO_LINEA.TAMANO, code)}
               className="sampling-tile-readonly-size"
-              editMode={editMode}
-
+              // Los contadores son editables solo para Supervisor Estimacion en modo edición
+              editMode={isSupervisorEstimacion && isEditing}
+ 
               onChange={(value) =>
                 handleCountChange(
                   TIPO_LINEA.TAMANO,
@@ -682,7 +883,7 @@ function EstimationSamplingEditPage() {
           </div>
         {/*) : null}*/}
       </div>
-
+ 
       <div
         className="sampling-shell__panel sampling-shell__panel--defects"
         role="tabpanel"
@@ -696,8 +897,9 @@ function EstimationSamplingEditPage() {
                 label={code}
                 count={countFor(TIPO_LINEA.DEFECTO, code)}
                 className="sampling-tile-readonly-defect"
-                editMode={editMode}
-
+                // Los contadores son editables solo para Supervisor Estimacion en modo edición
+                editMode={isSupervisorEstimacion && isEditing}
+ 
                 onChange={(value) =>
                   handleCountChange(
                     TIPO_LINEA.DEFECTO,
@@ -710,7 +912,7 @@ function EstimationSamplingEditPage() {
           </div>
         
       </div>
-
+ 
       {submitMessage ? (
         <p
           className={
@@ -725,5 +927,5 @@ function EstimationSamplingEditPage() {
     </div>
   );
 }
-
+ 
 export default EstimationSamplingEditPage;

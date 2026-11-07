@@ -1,7 +1,30 @@
-import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { validateEstimationCreatePayload, deriveGf } from '../domain/estimationBusinessRules';
 import { validateEstimationHeader } from '../domain/estimationHeaderRules';
+import { crearUniqueKey } from './operationalDraftStorage';
+
+/**
+ * Consulta Firestore para ver si ya existe un documento con el mismo uniqueKey.
+ * Devuelve el id del documento existente, o null si no hay duplicado.
+ *
+ * @param {string}      uniqueKey  - Clave canónica a buscar
+ * @param {string|null} excludeId  - Id de documento a ignorar (modo edición)
+ * @returns {Promise<string|null>}
+ */
+async function checkFirebaseDuplicate(uniqueKey, excludeId = null) {
+  if (!uniqueKey) return null;
+  const q = query(
+    collection(db, 'estimaciones'),
+    where('uniqueKey', '==', uniqueKey)
+  );
+  const snap = await getDocs(q);
+  for (const docSnap of snap.docs) {
+    if (excludeId && docSnap.id === excludeId) continue;
+    return docSnap.id; // duplicate found
+  }
+  return null;
+}
 
 export async function requestCreateEstimation(draft) {
   console.log('[estimationService] requestCreateEstimation start', { draft });
@@ -24,6 +47,22 @@ export async function requestCreateEstimation(draft) {
       };
     }
 
+    // --- Duplicate check (header-only / new record) ---
+    const headerUniqueKey = crearUniqueKey({
+      ...draft,
+      GF: deriveGf(draft.Forza ?? draft.forza, draft.Semana ?? draft.semana) || '',
+    });
+    const existingHeaderId = await checkFirebaseDuplicate(headerUniqueKey);
+    if (existingHeaderId) {
+      console.log('[estimationService] duplicate detected (header-only)', { headerUniqueKey, existingHeaderId });
+      return {
+        success: false,
+        errors: ['Ya existe una estimación para esta Cosecha, Tipo, GF, Lote, Parcela y Año.'],
+        isDuplicate: true,
+      };
+    }
+    // --- End duplicate check ---
+
     const dbPayload = {
       cosecha: draft.Cosecha ?? draft.cosecha,
       tipo: draft.Tipo ?? draft.tipo,
@@ -36,6 +75,8 @@ export async function requestCreateEstimation(draft) {
       ptasMues: Number(draft.PtasMues) || 0,
       area: Number(draft.Area) || 0,
       GF: deriveGf(draft.Forza ?? draft.forza, draft.Semana ?? draft.semana) || '',
+      uniqueKey: headerUniqueKey,
+      anio: new Date().getFullYear(),
       createdAt: new Date().toISOString(),
       isHeaderOnly: true,
     };
@@ -88,6 +129,22 @@ export async function requestCreateEstimation(draft) {
     };
   }
 
+  // --- Duplicate check (full payload / update existing header doc) ---
+  const fullUniqueKey = crearUniqueKey({
+    ...draft,
+    GF: validation.derivedGF || deriveGf(draft.Forza ?? draft.forza, draft.Semana ?? draft.semana) || '',
+  });
+  const existingFullId = await checkFirebaseDuplicate(fullUniqueKey, draft.estimationId ?? null);
+  if (existingFullId) {
+    console.log('[estimationService] duplicate detected (full payload)', { fullUniqueKey, existingFullId });
+    return {
+      success: false,
+      errors: ['Ya existe una estimación para esta Cosecha, Tipo, GF, Lote, Parcela y Año.'],
+      isDuplicate: true,
+    };
+  }
+  // --- End duplicate check ---
+
   const dbPayload = {
     cosecha: draft.Cosecha ?? draft.cosecha,
     tipo: draft.Tipo ?? draft.tipo,
@@ -109,6 +166,8 @@ export async function requestCreateEstimation(draft) {
     createdAt: new Date().toISOString(),
     isHeaderOnly: false,
     GF: validation.derivedGF || deriveGf(draft.Forza ?? draft.forza, draft.Semana ?? draft.semana) || '',
+    uniqueKey: fullUniqueKey,
+    anio: new Date().getFullYear(),
   };
 
   const payload = { ...dbPayload };
@@ -190,6 +249,22 @@ export async function requestUpdateEstimation(docId, draft) {
     };
   }
 
+  // --- Duplicate check (edit mode: exclude current docId) ---
+  const updateUniqueKey = crearUniqueKey({
+    ...draft,
+    GF: validation.derivedGF || deriveGf(draft.Forza ?? draft.forza, draft.Semana ?? draft.semana) || '',
+  });
+  const existingUpdateId = await checkFirebaseDuplicate(updateUniqueKey, docId);
+  if (existingUpdateId) {
+    console.log('[estimationService] duplicate detected (update)', { updateUniqueKey, existingUpdateId });
+    return {
+      success: false,
+      errors: ['Ya existe una estimación para esta Cosecha, Tipo, GF, Lote, Parcela y Año.'],
+      isDuplicate: true,
+    };
+  }
+  // --- End duplicate check ---
+
   const dbPayload = {
     cosecha: draft.Cosecha ?? draft.cosecha,
     tipo: draft.Tipo ?? draft.tipo,
@@ -210,6 +285,8 @@ export async function requestUpdateEstimation(docId, draft) {
     // Timestamps and metadata
     updatedAt: new Date().toISOString(),
     GF: validation.derivedGF || deriveGf(draft.Forza ?? draft.forza, draft.Semana ?? draft.semana) || '',
+    uniqueKey: updateUniqueKey,
+    anio: new Date().getFullYear(),
   };
 
   const payload = { ...dbPayload };

@@ -14,6 +14,9 @@ import { clearOperationalDraft } from '../services/operationalDraftStorage';
 import { requestCreateEstimation } from '../services/estimationService';
 import useOffline from '../hooks/useOffline';
 import SamplingCounterTileTomaFisica from '../components/estimation/SamplingCounterTileTomaFisica';
+import { puedeEditar, PANTALLAS } from '../constants/permissions';
+
+const SESSION_KEY = 'estfruta_session_user';
 
 function toApiDetalle(rows) {
   return rows.map(({ tipoLinea, codigoClasificacion, cantidadDelta }) => ({
@@ -50,17 +53,38 @@ function EstimationSamplingPageTF() {
   const navigate = useNavigate();
   const location = useLocation();
   const estimationId = location.state?.estimationId;
+  const isEditLocalMode = location.state?.mode === 'edit-local';
   const [header, setHeader] = useState(() => initialHeaderFromRoute(location));
   const { isOnline, guardarRegistroLocal, actualizarRegistroLocal, registrosLocales } = useOffline();
   const [localEditId, setLocalEditId] = useState(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const [samplingSaved, setSamplingSaved] = useState(
-    () => Boolean(estimationId || location.state?.localId)
+    () => Boolean(estimationId || (isEditLocalMode && location.state?.localId))
   );
 
   /*const [tab, setTab] = useState('sizes');*/
   const [submitMessage, setSubmitMessage] = useState('');
   const restoredRef = useRef(false);
+
+  // Resolver rol desde localStorage (este componente no recibe user como prop)
+  const resolvedUser = (() => {
+    try {
+      const stored = window.localStorage.getItem(SESSION_KEY);
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      return parsed?.Usuario && parsed?.Rol ? parsed : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const rol = resolvedUser?.Rol;
+
+  // Roles con CONSULTA_EDICION en EstimacionSamplingPageTF:
+  //   Administrador, Supervisor Estimacion, Muestreador.
+  // Roles con solo CONSULTA: Supervisor Cosecha, Logistica, Gerente General, Gerente Produccion.
+  // Para roles con solo CONSULTA el botón "Crear Registro" queda inhabilitado.
+  const canCrearRegistro = puedeEditar(rol, PANTALLAS.ESTIMACION_SAMPLING_TF);
   
   const {
     detalle,
@@ -96,7 +120,7 @@ function EstimationSamplingPageTF() {
     const incomingUniqueKey =
       incoming.header?.uniqueKey || incoming.uniqueKey || '';
 
-    if (!resolvedLocalId && incomingUniqueKey) {
+    if (!resolvedLocalId && incomingUniqueKey && incoming.mode === 'edit-local') {
       const recordByKey = registrosLocales.find(
         (r) => r.uniqueKey === incomingUniqueKey
       );
@@ -110,7 +134,9 @@ function EstimationSamplingPageTF() {
       if (storedRecord) {
         source = storedRecord;
         setLocalEditId(resolvedLocalId);
-        setSamplingSaved(true);
+        if (incoming.mode === 'edit-local') {
+          setSamplingSaved(true);
+        }
       }
     }
 
@@ -152,7 +178,9 @@ function EstimationSamplingPageTF() {
     frutasTotales,
   });
 
-  const canSave = Boolean(header) && countsMatch;
+  // canSave: para Muestreador y roles con edición, aplica la regla Total == PtasMues.
+  // Para roles con solo Consulta, el botón siempre queda deshabilitado (canCrearRegistro = false).
+  const canSave = Boolean(header) && countsMatch && canCrearRegistro;
   
 
   const ptasParsed = parseCount(ptasMuestras);
@@ -168,14 +196,24 @@ function EstimationSamplingPageTF() {
   }, [header, detalle]);
 
   async function handleCrearRegistro() {
+    /*alert(
+            'payload.id=' + payload.id +
+            ' | uniqueKey=' + uniqueKey
+          );*/
+    
+
     setSubmitMessage('');
     
     const payload = mergePayload();
     if (!payload) return;
+    console.log('PAYLOAD COMPLETO:', payload);
+    const uniqueKey =
+      header?.uniqueKey ||
+      `${payload.Tipo || payload.tipo}-${payload.lote || payload.Lote}-${payload.parcela || payload.Parcela }`;
+      console.log('uniqueKey calculado:', uniqueKey);
     if (!isOnline) {
-      const uniqueKey =
-        header?.uniqueKey ||
-        `${payload.Tipo || payload.tipo}-${payload.lote || payload.Lote || ''}-${payload.parcela || payload.Parcela || ''}-${Date.now()}`;
+      
+      
 
       // If editing an existing local record, update instead of inserting
       if (localEditId) {
@@ -200,6 +238,9 @@ function EstimationSamplingPageTF() {
         ...payload,
         uniqueKey,
       });
+
+      console.log('OK DESPUES DE GUARDAR:', ok);
+
       if (ok) {
         alert('Registro guardado localmente');
         clearOperationalDraft();
@@ -207,6 +248,7 @@ function EstimationSamplingPageTF() {
         setSubmitMessage('Guardado local');
         return;
       }
+
       setSubmitMessage('Error guardando local');
       return;
     }
@@ -226,12 +268,27 @@ function EstimationSamplingPageTF() {
   }
 
   function handleVolverCabecera() {
-    if (!samplingSaved) {
-      alert('Debe guardar la Toma Física antes de regresar a Cabecera');
-      return;
-    }
-    navigate('/estimaciones/nueva', { replace: true });
-  }
+
+        if (!samplingSaved) {
+          alert(
+            'Debe guardar la Toma Física antes de regresar a Cabecera'
+          );
+          return;
+        }
+        // Check if there are unverified local records
+        const hasPendingLocal = 
+          Array.isArray(registrosLocales) && 
+          registrosLocales.some(r => r.verificado !== true);
+
+        if (hasPendingLocal) {
+          alert('Debe verificar la Toma Física guardada antes de regresar a Cabecera.');
+          return;
+        }
+
+        navigate('/estimaciones/nueva', {
+          replace: true,
+        });
+      }
 
   function handleLimpiarConteos() {
     resetDetalle();
@@ -255,31 +312,42 @@ function EstimationSamplingPageTF() {
     return null;
   }
 
+  const hasPendingVerification = 
+    Array.isArray(registrosLocales) && 
+    registrosLocales.some(r => r.verificado !== true);
+
+  const canOpenFolder = Array.isArray(registrosLocales) && registrosLocales.length > 0;
+
   return (
     <div className="sampling-shell">
       <header className="sampling-shell__header">
         <button
-            type="button"
-            className="sampling-shell__back"
-            onClick={handleVolverCabecera}
-            disabled={!samplingSaved}
-            title={
-              !samplingSaved
-                ? 'Debe guardar la Toma Física antes de regresar a Cabecera'
-                : 'Volver a Cabecera'
-            }
-            style={{
-              cursor: samplingSaved
-                ? 'pointer'
-                : 'not-allowed',
+          type="button"
+          className="sampling-shell__back"
+          onClick={handleVolverCabecera}
+          disabled={
+            !samplingSaved ||
+            hasPendingVerification
+          }
+          title={
+            hasPendingVerification
+              ? 'Debe verificar la Toma Física guardada antes de regresar a Cabecera'
+              : 'Volver a Cabecera'
+          }
+          style={{
+            cursor:
+              !samplingSaved || hasPendingVerification
+                ? 'not-allowed'
+                : 'pointer',
 
-              visibility: samplingSaved
-                ? 'visible'
-                : 'hidden'
-            }}
-          >
-            Cabecera
-          </button>
+            opacity:
+              !samplingSaved || hasPendingVerification
+                ? 0.5
+                : 1,
+          }}
+        >
+          Cabecera
+        </button>
             
         <div
           style={{
@@ -298,42 +366,55 @@ function EstimationSamplingPageTF() {
               height: 10,
               borderRadius: '50%',
               background: isOnline
-                  ? '#22c55e'
-                  : '#ef4444',
+                ? '#22c55e'
+                : '#ef4444',
               display: 'inline-block',
             }}
           />
 
-          {isOnline ? 'En línea' : 'Sin línea'}
+          <span
+            style={{
+              color: isOnline ? '#22c55e' : '#ef4444',
+              fontWeight: 600,
+            }}
+          >
+            {isOnline ? 'En línea' : 'Sin línea'}
+          </span>
         </div>
         <div className="sampling-shell__context" title={contextLine}>
           {contextLine}
         </div>
-        <button
-            style={{
-              border: 'none',
-              borderRadius: 8,
-              background: '#2563eb',
-              color: '#ffffff',
-              fontSize: 18,
-              marginLeft: 12,
-              cursor: 'pointer',
-            }}
-            style={{
-              cursor: samplingSaved
-                ? 'pointer'
-                : 'not-allowed',
-
-              visibility: samplingSaved
-                ? 'visible'
-                : 'hidden'
-            }}
-            onClick={() => navigate('/estimaciones/locales')}
-          >
-            🛢️
-        </button>
-            
-        
+        {canOpenFolder && (
+            <button
+              type="button"
+              style={{
+                width: 35,
+                height: 35,
+                border: 'none',
+                borderRadius: 10,
+                background: '#16a34a',
+                color: '#fff',
+                fontSize: 20,
+                cursor: !samplingSaved ? 'not-allowed' : 'pointer',
+                marginLeft: 6, 
+                marginRight: 6,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                opacity: !samplingSaved ? 0.5 : 1,
+              }}
+              onClick={() => {
+                if (!samplingSaved) return;
+                navigate('/estimaciones/locales');
+              }}
+              disabled={!samplingSaved}
+              title={
+                !samplingSaved
+                  ? 'Guarda la Toma Física antes de abrir Registros Locales'
+                  : 'Registros Locales'
+              }
+            >
+              📂
+            </button>
+          )}
         
       </header>
         
@@ -407,17 +488,26 @@ function EstimationSamplingPageTF() {
       </div>
 
       <footer className="sampling-shell__footer">
+        {/* Botón Crear Registro:
+            - Muestreador y roles con edición: habilitado solo si Total == PtasMues (canSave).
+            - Roles con solo Consulta: siempre deshabilitado (canCrearRegistro = false). */}
         <button
           type="button"
           className="validate-button sampling-footer__primary"
           disabled={!canSave}
           onClick={handleCrearRegistro}
+          style={{
+            backgroundColor: canSave ? '#16a34a' : '#dc2626',
+            color: '#fff',
+            cursor: canSave ? 'pointer' : 'not-allowed',
+          }}
           title={
-                  !countsMatch
-                    ? 'Total debe ser igual a PtasMues.'
-                    : ''
-                }
-          
+            !canCrearRegistro
+              ? 'No tiene permisos para crear registros.'
+              : !countsMatch
+              ? 'Total debe ser igual a PtasMues.'
+              : ''
+          }
         >
           Crear Registro
         </button>

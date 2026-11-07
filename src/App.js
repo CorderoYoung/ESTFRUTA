@@ -15,19 +15,35 @@ import EstimationSamplingPageTF from './pages/EstimationSamplingPageTF';
 import EstimationSamplingEditPage from './pages/EstimationSamplingEditPage';
 import PantallaConsultaEstFruta from './pages/PantallaConsultaEstFruta';
 import PantallaDatosGuardadosCelular from './pages/PantallaDatosGuardadosCelular';
+import PantallaEstimacionPorSeccion from './pages/PantallaEstimacionPorSeccion';
 import RoleHomePage from './pages/RoleHomePage';
 import ProtectedRoute from './routes/ProtectedRoute';
 import { authenticateUser, getActiveUsers } from './services/authService';
+import PantallaAnalisisGF_Lote from './pages/PantallaAnalisisGF_Lote';
+import PantallaAnalisisParcelaDetalle from './pages/PantallaAnalisisParcelaDetalle';
+
+// SESSION_KEY fuera del componente: disponible antes del primer render
+const SESSION_KEY = 'estfruta_session_user';
 
 function AuthApp() {
   const navigate = useNavigate();
   const location = useLocation();
-  const SESSION_KEY = 'estfruta_session_user';
   const [credentials, setCredentials] = useState({
     usuario: '',
     clave: '',
   });
-  const [currentUser, setCurrentUser] = useState(null);
+  // useState síncrono: currentUser disponible desde el primer render
+  // evita que ProtectedRoute vea user=null al navegar entre rutas
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(SESSION_KEY);
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      return parsed?.Usuario && parsed?.Rol ? parsed : null;
+    } catch {
+      return null;
+    }
+  });
   const [isOnline, setIsOnline] = useState(window.navigator.onLine);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,19 +60,6 @@ function AuthApp() {
     }
 
     loadActiveUsers();
-  }, []);
-
-  useEffect(() => {
-    const stored = window.sessionStorage.getItem(SESSION_KEY);
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored);
-      if (parsed && parsed.Usuario && parsed.Rol) {
-        setCurrentUser(parsed);
-      }
-    } catch {
-      // ignore invalid session
-    }
   }, []);
 
   useEffect(() => {
@@ -101,7 +104,7 @@ function AuthApp() {
     }
 
     setCurrentUser(result.user);
-    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(result.user));
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(result.user));
     setCredentials((current) => ({ ...current, clave: '' }));
     navigate(result.redirectPath, { replace: true });
     setIsLoading(false);
@@ -109,7 +112,7 @@ function AuthApp() {
 
   function onExit() {
     setCurrentUser(null);
-    window.sessionStorage.removeItem(SESSION_KEY);
+    window.localStorage.removeItem(SESSION_KEY);
     setCredentials({ usuario: '', clave: '' });
     setError('');
     navigate('/login', { replace: true });
@@ -180,7 +183,19 @@ function AuthApp() {
         />
       }
     >
-
+        <Route
+          path="/estimaciones/seccion/:id"
+          element={
+            <PantallaEstimacionPorSeccion
+              user={currentUser}
+              onLogout={onExit}
+            />
+          }
+        />
+        <Route
+          path="/estimaciones/analisis/parcela/:id"
+          element={<PantallaAnalisisParcelaDetalle />}
+        />
         <Route
           path="/estimaciones/nueva"
           element={

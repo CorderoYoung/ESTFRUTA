@@ -1,0 +1,726 @@
+/* ──────────────────────────────────────────────────────────────
+   PantallaEstimacionPorGF.css
+   Diseño alineado con PantallaAnalisisParcelaDetalle
+   ────────────────────────────────────────────────────────────── */
+
+/* ─── Page shell ─────────────────────────────────────────────── */
+.pgf-page {
+  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f3f4f6;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #111827;
+  overflow: hidden;
+}
+
+/* ─── Header ─────────────────────────────────────────────────── */
+.pgf-header {
+  height: 58px;
+  min-height: 58px;
+  background: #15803d; /* Verde agrícola */
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  z-index: 10;
+}
+
+.pgf-back {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pgf-header-title {
+  flex: 1;
+  text-align: center;
+  line-height: 1.12;
+}
+
+.pgf-header-title h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.pgf-header-title span {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pgf-header-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pgf-header-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ─── Contenido principal ────────────────────────────────────── */
+.pgf-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* ─── Filtros ────────────────────────────────────────────────── */
+.pgf-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.pgf-filter,
+.pgf-select {
+  width: 100%;
+  height: 42px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  font-family: inherit;
+  outline: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ─── Resumen superior ───────────────────────────────────────── */
+.pgf-summary-top {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.pgf-summary-item {
+  text-align: center;
+  line-height: 1.15;
+}
+
+.pgf-summary-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: #991b1b;
+}
+
+.pgf-summary-value {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+}
+
+/* ─── Filas de totales ───────────────────────────────────────── */
+.pgf-total-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pgf-total-row {
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(58px, 0.7fr) auto minmax(58px, 0.7fr);
+  column-gap: 8px;
+  align-items: center;
+  padding: 5px 10px;
+  box-sizing: border-box;
+  background: #fff1f2;
+  border-radius: 0;
+  font-weight: 800;
+}
+
+.pgf-total-row.total {
+  border: 2px solid #22c55e;
+}
+
+.pgf-total-row.no-empacables {
+  border: 2px solid #ef4444;
+}
+
+.pgf-total-row.empacables {
+  border: 2px solid #0ea5e9;
+}
+
+.pgf-total-label {
+  font-size: 13px;
+  color: #374151;
+}
+
+.pgf-total-ha-label,
+.pgf-total-ha-value {
+  font-size: 17px;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.pgf-total-ha-label {
+  text-align: left;
+}
+
+.pgf-total-ha-value {
+  text-align: right;
+}
+
+.pgf-total-count {
+  font-size: 17px;
+  color: #111827;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ─── Tabla de tamaños T5-T12 ───────────────────────────────── */
+.pgf-size-table {
+  width: 100%;
+  min-height: 58px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.pgf-size-table th,
+.pgf-size-table td {
+  text-align: center;
+  padding: 4px 0;
+  border: 1px solid #e5e7eb;
+  font-weight: 800;
+}
+
+.pgf-size-table th {
+  color: #fff;
+  font-size: 16px;
+}
+
+.pgf-size-table td {
+  color: #111827;
+  font-size: 14px;
+  background: #fff;
+}
+
+/* Colores por tamaño */
+.pgf-t5  { background: #007a3d; }
+.pgf-t6  { background: #2f9461; }
+.pgf-t7  { background: #5fbd62; }
+.pgf-t8  { background: #fde28a; color: #111827 !important; }
+.pgf-t9  { background: #ffb35c; color: #111827 !important; }
+.pgf-t10 { background: #fb6846; }
+.pgf-t11 { background: #dc2626; }
+.pgf-t12 { background: #be003f; }
+
+/* ─── Cards de gráficos ─────────────────────────────────────── */
+.pgf-chart-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 9px 10px 8px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.pgf-chart-title {
+  margin: 0 0 5px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #374151;
+  line-height: 1.15;
+}
+
+.pgf-chart-title.left {
+  text-align: left;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Gráfico curva de tamaños ──────────────────────────────── */
+.pgf-size-chart {
+  height: 245px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pgf-size-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 5px;
+  padding: 14px 4px 2px;
+  box-sizing: border-box;
+}
+
+.pgf-size-bar-item {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pgf-bar-value {
+  font-size: 10px;
+  font-weight: 700;
+  color: #374151;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.pgf-size-bar {
+  width: 70%;
+  min-height: 4px;
+  border-radius: 5px 5px 0 0;
+}
+
+.pgf-bar-label {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #374151;
+}
+
+/* ─── Grupos Grandes / Intermedios / Pequeños ──────────────── */
+.pgf-groups {
+  border-top: 1px solid #9ca3af;
+  margin-top: 8px;
+  padding-top: 7px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.pgf-group {
+  text-align: center;
+  line-height: 1.1;
+}
+
+.pgf-group-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #374151;
+}
+
+.pgf-group-value {
+  display: block;
+  margin-top: 2px;
+  font-size: 17px;
+  font-weight: 900;
+  color: #111827;
+}
+
+/* ─── Gráfico motivos de no empaque ─────────────────────────── */
+.pgf-defects-card {
+  min-height: 128px;
+  max-height: 128px;
+}
+
+.pgf-defects-chart {
+  height: 86px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 5px;
+  padding-top: 8px;
+  box-sizing: border-box;
+}
+
+.pgf-defect-item {
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pgf-defect-value {
+  font-size: 9px;
+  font-weight: 800;
+  color: #374151;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.pgf-defect-bar {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 5px 5px 0 0;
+}
+
+.pgf-defect-label {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 8px;
+  font-weight: 800;
+  color: #4b5563;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Colores motivos */
+.pgf-defect-color-1  { background: #7c3aed; }
+.pgf-defect-color-2  { background: #2563eb; }
+.pgf-defect-color-3  { background: #0891b2; }
+.pgf-defect-color-4  { background: #059669; }
+.pgf-defect-color-5  { background: #ca8a04; }
+.pgf-defect-color-6  { background: #ea580c; }
+.pgf-defect-color-7  { background: #dc2626; }
+.pgf-defect-color-8  { background: #be123c; }
+.pgf-defect-color-9  { background: #9333ea; }
+.pgf-defect-color-10 { background: #0d9488; }
+.pgf-defect-color-11 { background: #65a30d; }
+.pgf-defect-color-12 { background: #475569; }
+
+/* ─── Estados ───────────────────────────────────────────────── */
+.pgf-loading,
+.pgf-empty,
+.pgf-error {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.pgf-error {
+  color: #dc2626;
+}
+
+/* ─── Responsive celular ────────────────────────────────────── */
+@media (max-width: 600px) {
+  .pgf-header {
+    height: 54px;
+    min-height: 54px;
+    padding: 7px 10px;
+  }
+
+  .pgf-back {
+    width: 30px;
+    height: 30px;
+    font-size: 22px;
+  }
+
+  .pgf-header-title h1 {
+    font-size: 18px;
+  }
+
+  .pgf-header-title span {
+    font-size: 14px;
+  }
+
+  .pgf-header-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .pgf-content {
+    gap: 5px;
+    padding: 6px 7px 8px;
+  }
+
+  .pgf-filters,
+  .pgf-summary-top,
+  .pgf-total-box,
+  .pgf-size-table {
+    flex-shrink: 0;
+  }
+
+  .pgf-filters {
+    gap: 6px;
+    min-height: 38px;
+  }
+
+  .pgf-filter,
+  .pgf-select {
+    height: 38px;
+    border-radius: 8px;
+    font-size: 13px;
+    padding: 0 10px;
+  }
+
+  .pgf-summary-top {
+    padding: 6px 8px;
+    border-radius: 10px;
+  }
+
+  .pgf-summary-label {
+    font-size: 11px;
+  }
+
+  .pgf-summary-value {
+    font-size: 13px;
+  }
+
+  .pgf-total-box {
+    gap: 3px;
+  }
+
+  .pgf-total-row {
+    min-height: 31px;
+    padding: 4px 8px;
+    grid-template-columns: minmax(0, 1.55fr) minmax(50px, 0.65fr) auto minmax(50px, 0.65fr);
+    column-gap: 5px;
+  }
+
+  .pgf-total-label {
+    font-size: 12px;
+  }
+
+  .pgf-total-ha-label,
+  .pgf-total-ha-value,
+  .pgf-total-count {
+    font-size: 15px;
+  }
+
+  .pgf-size-table {
+    min-height: 50px;
+  }
+
+  .pgf-size-table th {
+    font-size: 14px;
+    padding: 3px 0;
+  }
+
+  .pgf-size-table td {
+    font-size: 13px;
+    padding: 3px 0;
+  }
+
+  .pgf-chart-card {
+    flex: 1 1 0;
+    min-height: 0;
+    height: auto;
+    border-radius: 10px;
+    padding: 7px 8px 6px;
+  }
+
+  .pgf-chart-title {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .pgf-size-chart {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .pgf-size-bars {
+    min-height: 0;
+    gap: 4px;
+    padding-top: 10px;
+  }
+
+  .pgf-bar-value {
+    font-size: 9px;
+    margin-bottom: 3px;
+  }
+
+  .pgf-size-bar {
+    width: 72%;
+    border-radius: 4px 4px 0 0;
+  }
+
+  .pgf-bar-label {
+    font-size: 10px;
+    margin-top: 3px;
+  }
+
+  .pgf-groups {
+    margin-top: 6px;
+    padding-top: 6px;
+  }
+
+  .pgf-group-label {
+    font-size: 10px;
+  }
+
+  .pgf-group-value {
+    font-size: 15px;
+  }
+
+  .pgf-defects-card {
+    min-height: 0;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pgf-defects-chart {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+    gap: 3px;
+    padding-top: 6px;
+  }
+
+  .pgf-defect-value {
+    font-size: 8px;
+    margin-bottom: 3px;
+  }
+
+  .pgf-defect-bar {
+    border-radius: 4px 4px 0 0;
+  }
+
+  .pgf-defect-label {
+    font-size: 7px;
+    margin-top: 3px;
+  }
+}
+
+/* ─── Celulares de poca altura ───────────────────────────────── */
+@media (max-width: 600px) and (max-height: 760px) {
+  .pgf-header {
+    height: 50px;
+    min-height: 50px;
+  }
+
+  .pgf-content {
+    gap: 4px;
+    padding: 5px 6px 6px;
+  }
+
+  .pgf-filter,
+  .pgf-select {
+    height: 35px;
+    font-size: 12px;
+  }
+
+  .pgf-summary-top {
+    padding: 5px 8px;
+  }
+
+  .pgf-total-row {
+    min-height: 28px;
+    padding: 3px 8px;
+  }
+
+  .pgf-total-label {
+    font-size: 11px;
+  }
+
+  .pgf-total-ha-label,
+  .pgf-total-ha-value,
+  .pgf-total-count {
+    font-size: 14px;
+  }
+
+  .pgf-size-table {
+    min-height: 45px;
+  }
+
+  .pgf-size-table th {
+    font-size: 13px;
+  }
+
+  .pgf-size-table td {
+    font-size: 12px;
+  }
+
+  .pgf-chart-card {
+    padding: 6px 7px 5px;
+  }
+
+  .pgf-size-chart {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .pgf-chart-title {
+    font-size: 11px;
+  }
+
+  .pgf-bar-value {
+    font-size: 8px;
+  }
+
+  .pgf-bar-label {
+    font-size: 9px;
+  }
+
+  .pgf-group-label {
+    font-size: 9px;
+  }
+
+  .pgf-group-value {
+    font-size: 14px;
+  }
+
+  .pgf-defects-card {
+    min-height: 0;
+    max-height: none;
+  }
+
+  .pgf-defects-chart {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+  }
+
+  .pgf-defect-value {
+    font-size: 7px;
+  }
+
+  .pgf-defect-label {
+    font-size: 6.5px;
+  }
+}
+
+/* ─── Pantallas más grandes ─────────────────────────────────── */
+@media (min-width: 768px) {
+  .pgf-page {
+    max-width: 430px;
+    margin: 0 auto;
+    border-left: 1px solid #e5e7eb;
+    border-right: 1px solid #e5e7eb;
+  }
+}

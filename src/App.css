@@ -18,8 +18,8 @@
 }
 
 .login-header {
-  background: #c9171f;
-  padding: 20px 24px;
+   background: #15803d;/* Verde agrícola */
+  padding: 20px 24px;/* Espaciado interno del encabezado */
 }
 
 .login-title {
@@ -174,8 +174,8 @@
   width: 220px;
   border: none;
   border-radius: 10px;
-  background: #c9171f;
-  color: #ffffff;
+  background: #15803d;/* Verde agrícola */
+  color: #ffffff;/* Color blanco para el texto del botón */
   font-size: 1rem;
   font-weight: 700;
   padding: 8px 16px;

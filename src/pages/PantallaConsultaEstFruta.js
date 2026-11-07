@@ -3,10 +3,18 @@ import { db } from '../firebaseConfig.js';
 import { useEffect, useMemo, useState } from 'react';
 import useOffline from '../hooks/useOffline';
 import { useNavigate } from 'react-router-dom';
+import { puedeEditar, PANTALLAS, ROLES } from '../constants/permissions';
 
 
-function PantallaConsultaEstFruta({ user }) {
+
+function PantallaConsultaEstFruta({ user, onLogout }) {
   const navigate = useNavigate();
+  const rol = user?.Rol;
+  // Todos los roles tienen CONSULTA_EDICION en esta pantalla,
+  // por lo que canEdit siempre será true según la nueva matriz.
+  const canEdit = puedeEditar(rol, PANTALLAS.CONSULTA_EST_FRUTA);
+  // El icono de gráfico/análisis se oculta solo para Muestreador.
+  const canVerGrafico = rol !== ROLES.MUESTREADOR;
   const [registros, setRegistros] = useState([]);
   const [selectedGF, setSelectedGF] = useState('');
   const [selectedLote, setSelectedLote] = useState('');
@@ -22,29 +30,35 @@ function PantallaConsultaEstFruta({ user }) {
     const datos = querySnapshot.docs.map((doc) => {
 
   const data = doc.data();
+
+  // Normalise to string so filters work regardless of number/string type in Firebase
+  const loteRaw    = data.Lote    ?? data.lote    ?? '';
+  const parcelaRaw = data.Parcela ?? data.parcela ?? data.seccion ?? '';
+
   return {
-  id: doc.id,
+    id: doc.id,
 
-  gf: data.gf || data.GF || '',
-  lote: data.lote || data.Lote || '',
+    // GF: uppercase field takes priority (set by estimationService)
+    gf: data.GF || data.gf || '',
 
-  seccion:
-    data.seccion ||
-    data.parcela ||
-    data.Parcela ||
-    '',
+    // Lote / Parcela: stored as numbers by estimationService; stringify for display/filter
+    lote:   String(loteRaw),
+    Lote:   String(loteRaw),
+    seccion: String(parcelaRaw),
+    Parcela: String(parcelaRaw),
 
-  pc:
-    data.pc ||
-    data.cosecha ||
-    data.Cosecha ||
-    '',
+    // Cosecha / Tipo
+    pc:   data.Cosecha  || data.cosecha  || data.pc   || '',
+    tipo: data.Tipo     || data.tipo     || '',
 
-  tipo: data.tipo || data.Tipo || '',
-  area: data.area || data.Area || '',
+    // Area
+    area: data.Area ?? data.area ?? '',
 
-  aprobado: true,
-};
+    // Indicador de aprobación: usa el campo `verificado` existente en Firebase.
+    // true  → círculo verde oscuro con ✓ (aprobado por Supervisor Estimacion)
+    // false → círculo naranja (pendiente de aprobación)
+    aprobado: data.verificado === true,
+  };
 
 });
 
@@ -61,6 +75,7 @@ function PantallaConsultaEstFruta({ user }) {
         lote: r.Lote || r.lote || '',
         seccion: r.Parcela || r.parcela || r.seccion || '',
         area: r.Area || r.area || '',
+        // Los registros locales nunca están aprobados (aún no están en Firebase)
         aprobado: false,
         _local: true,
       }));
@@ -114,34 +129,50 @@ setRegistros(datosFiltrados);
     ];
   }, [selectedGF, selectedLote, registros]);
 
+  const normalizar = (value) => String(value ?? '').trim();
+
   const filteredData = useMemo(() => {
-    return registros.filter((x) => {
-      return (
-        (!selectedGF || x.gf === selectedGF) &&
-        (!selectedLote || x.lote === selectedLote) &&
-        (!selectedSeccion || x.seccion === selectedSeccion)
-      );
-    });
+    return registros
+      .filter((x) => {
+        const xGF      = normalizar(x.GF ?? x.gf);
+        const xLote    = normalizar(x.Lote ?? x.lote);
+        const xSeccion = normalizar(x.Parcela ?? x.parcela ?? x.seccion ?? x.Seccion);
+        return (
+          (!selectedGF      || normalizar(selectedGF)      === xGF) &&
+          (!selectedLote    || normalizar(selectedLote)    === xLote) &&
+          (!selectedSeccion || normalizar(selectedSeccion) === xSeccion)
+        );
+      })
+      .sort((a, b) => {
+        const loteA    = Number(a.Lote ?? a.lote ?? 0);
+        const loteB    = Number(b.Lote ?? b.lote ?? 0);
+        const parcelaA = Number(a.Parcela ?? a.parcela ?? a.seccion ?? 0);
+        const parcelaB = Number(b.Parcela ?? b.parcela ?? b.seccion ?? 0);
+        if (loteA !== loteB) return loteA - loteB;
+        return parcelaA - parcelaB;
+      });
   }, [selectedGF, selectedLote, selectedSeccion, registros]);
 
   return (
-    <div className="sampling-shell">
+    <div className="sampling-shell" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto', overflowX: 'hidden' }}>
 
       {/* HEADER */}
       <div className="sampling-shell__header">
 
         <button
           style={{
-            width: 28,
-            height: 28,
+            padding: '6px 12px',
             borderRadius: 8,
             border: 'none',
-            background: '#f1f1f1',
-            fontSize: 14,
+            background: '#dc2626',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
           }}
-          onClick={() => navigate('/login')}
+          onClick={onLogout}
         >
-          ⌂
+          Exit
         </button>
 
         <div
@@ -151,10 +182,11 @@ setRegistros(datosFiltrados);
             justifyContent: 'center',
             alignItems: 'center',
             gap: 4,
-            fontSize: 11,
+            fontSize: 14,
             fontWeight: 800,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
+            color: '#fff',
           }}
         >
           <span>GF {selectedGF || '--'}</span>
@@ -167,60 +199,88 @@ setRegistros(datosFiltrados);
         <div
           style={{
             display: 'flex',
-            gap: 15,
+            gap: 30, /* espacio entre los botones */
             flexShrink: 0,
+            
           }}
         >
 
-          <button
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 7,
-            border: 'none',
-            background: '#16a34a',
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 700,
-            padding: 0,
-          }}
-        >
-            ↻
-          </button>
-
-          <button
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 7,
-            border: 'none',
-            background: '#16a34a',
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 700,
-            padding: 0,
-          }}
-        >
+          {/*<button
+            onClick={() =>
+              navigate('/estimaciones/analisis')
+            }
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 7,
+              border: 'none',
+              background: '#16a34a',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: 0,
+              cursor: 'pointer',
+            }}
+          >
             📈
-          </button>
+          </button> */}
 
+          {/* Icono de gráfico: visible para todos los roles EXCEPTO Muestreador */}
+          {canVerGrafico && (
+            <button
+            style={{
+              width: 25,
+              height: 25,
+              borderRadius: 7,
+              border: 'none',
+              background: '#16a34a',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 700,
+              padding: 0,
+              cursor: 'pointer',
+            }}
+            onClick={() => navigate('/estimaciones/gf')}
+          >
+              📊
+            </button>
+          )}
+
+            {canEdit && (
             <button
               type="button"
               style={{
-                width: 24,
-                height: 24,
+                width: 25,
+                height: 25,
                 borderRadius: 7,
                 border: 'none',
                 background: '#16a34a',
-                color: '#fff',
-                fontSize: 12,
+                color: 'white',
+                fontSize: 14,
                 fontWeight: 700,
                 padding: 0,
               }}
-              onClick={() => navigate('/estimaciones/nueva')}
+              onClick={() => {
+
+                // Check if there are unverified local records
+                const hasPendingLocal = 
+                  Array.isArray(registrosLocales) && 
+                  registrosLocales.some(r => r.verificado !== true);
+
+                if (hasPendingLocal) {
+                  alert(
+                    'Debe verificar la Toma Física guardada antes de crear una nueva Cabecera'
+                  );
+                  return;
+                }
+
+                navigate('/estimaciones/nueva');
+
+              }}
             >
               +
             </button>
+            )}
 
         </div>
       </div>
@@ -350,6 +410,9 @@ setRegistros(datosFiltrados);
           flexDirection: 'column',
           gap: 4,
           padding: 8,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingBottom: 80,
         }}
       >
 
@@ -377,7 +440,20 @@ setRegistros(datosFiltrados);
             <div>{item.lote}</div>
             <div>{item.seccion}</div>
 
-            <div
+            
+
+            <div>{item.area}</div>
+
+          {/*
+            Indicador de aprobación:
+            ● Verde oscuro con ✓ → verificado: true en Firebase (aprobado por Supervisor)
+            ● Naranja            → verificado: false / ausente (pendiente de aprobación)
+
+            Se eliminó el estado intermedio "verde claro" (ptasMues === frutasTotales)
+            porque ese dato no está disponible en el listado; la única fuente de verdad
+            es el campo `verificado` de Firebase.
+          */}
+          <div
                 style={{
                   display: 'flex',
                   justifyContent: 'center',
@@ -386,7 +462,7 @@ setRegistros(datosFiltrados);
                 }}
               >
                 {item.aprobado ? (
-
+                  /* Aprobado: verificado === true en Firebase */
                   <div
                     style={{
                       width: 16,
@@ -400,23 +476,12 @@ setRegistros(datosFiltrados);
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
+                    title="Aprobado"
                   >
                     ✓
                   </div>
-
-                ) : item.ptasMues === item.frutasTotales ? (
-
-                  <div
-                    style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      background: '#22c55e',
-                    }}
-                  />
-
                 ) : (
-
+                  /* Pendiente: verificado === false o campo ausente */
                   <div
                     style={{
                       width: 16,
@@ -424,46 +489,65 @@ setRegistros(datosFiltrados);
                       borderRadius: '50%',
                       background: '#f97316',
                     }}
+                    title="Pendiente de aprobación"
                   />
-
                 )}
             </div>
-
-            <div>{item.area}</div>
-
-            <button
+            
+           {canEdit && (
+           <button
+              type="button"
               style={{
                 width: 22,
                 height: 22,
                 border: 'none',
                 borderRadius: 5,
                 background: '#16a34a',
-                color: '#fff',
+                color: '#000000',
                 fontSize: 10,
-              }}
-              onClick={() =>
-                navigate(`/estimaciones/editar/${item.id}`)
-              }
-            >
-              ✎
-            </button>
+                marginLeft: 40,
 
-            <button
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: 5,
-              border: 'none',
-              background: '#16a34a',
-              color: '#fff',
-              fontSize: 10,
-              fontWeight: 700,
-              padding: 0,
-              justifySelf: 'end',
-            }}
-          >
-              📈
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                navigate(`/estimaciones/editar/${item.id}`);
+              }}
+            >
+              ✏️
             </button>
+           )}
+
+            {/* 
+              BOTÓN EDITAR / ABRIR SECCIÓN - TEMPORALMENTE DESACTIVADO
+
+              <button
+                type="button"
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 5,
+                  border: 'none',
+                  background: '#16a34a',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: 0,
+                  justifySelf: 'end',
+                  cursor: 'pointer',
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate(`/estimaciones/seccion/${item.id}`);
+                }}
+              >
+                📝
+              </button>
+              */}
 
           </div>
         ))}
