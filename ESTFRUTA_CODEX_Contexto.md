@@ -384,6 +384,7 @@ PantallaConsultaEstFruta
   verificado: true,   // ← campo agregado en Sprint 2
   aprobadoPor,        // ← String — quién aprobó (solo lo escribe handleAprobar)
   aprobadoEn,         // ← Date — cuándo se aprobó
+  verificacionReseteadaEn, // ← Date — marca de la limpieza del 2026-11-07, solo auditoría
   anulado: true,      // ← Boolean — borrado lógico (S15). Si falta, el registro está vigente
   anuladoPor,         // ← String — quién anuló
   anuladoEn,          // ← Date — cuándo se anuló
@@ -837,6 +838,7 @@ allow delete: if false;
 | S13 | Quitar fecha de expiración de `firestore.rules` y reactivar Firestore | ✅ Implementado y publicado 2026-11-07. Verificado con lectura real contra la API (HTTP 200). Ver [Incidente de reglas vencidas](ESTFRUTA_HISTORIAL.md#incidente-reglas-2026-11-07) |
 | S14 | Corregir la verificación de muestreos (botón Volver + botón Aprobar) | ✅ Implementado y probado en producción 2026-11-07. Ver [Verificación y anulación](ESTFRUTA_HISTORIAL.md#bugs-verificacion-2026-11-07) |
 | S15 | Cambiar Eliminar por anulación (borrado lógico) en las 7 pantallas afectadas | ✅ Implementado y probado en producción 2026-11-07. Ver [Borrado lógico](ESTFRUTA_HISTORIAL.md#borrado-logico) |
+| S16 | Devolver a pendiente los registros falsamente verificados | ✅ Hecho 2026-11-07: 21 documentos pasados a `verificado: false` con marca `verificacionReseteadaEn`. Esperan aprobación real del supervisor |
 
 ---
 
@@ -846,7 +848,7 @@ allow delete: if false;
 | Bug | Archivo | Causa raíz | Impacto |
 |---|---|---|---|
 | Código muerto en `estimationService.js` con un `throw` de depuración adentro | `estimationService.js` | `requestCreateEstimation` tiene un `throw new Error(...)` de depuración donde iría un `addDoc`, y `addDoc` se importa sin usarse. **La función no se llama desde ningún lado** (el compilador lo confirma: *'requestCreateEstimation' is defined but never used*), así que el `throw` es inalcanzable | Ninguno funcional, pero es una trampa: hace creer que ahí se crean las estimaciones. Conviene borrar la función. La creación real está en `EstimationHeaderPage.js` → `guardarFirebase()` |
-| Registros verificados sin aprobación real | datos en Firestore | El bug del botón Volver (ver [verificación](ESTFRUTA_HISTORIAL.md#bugs-verificacion-2026-11-07)) marcó `verificado: true` sin `aprobadoPor` | Se identifican por tener `verificado: true` y no tener `aprobadoPor`. Pendiente devolverlos a estado no verificado |
+| **`frutasTotales` guardado no coincide con el `detalle`** | `estimationService.js` / datos en Firestore | En 20 de 21 documentos vigentes el agregado guardado vale 0, 2 o 3 mientras la suma real del `detalle` es 448, 2660, 3087… Probablemente se escribe el agregado antes de que el `detalle` esté completo | Las pantallas de análisis recalculan desde `detalle` y no se ven afectadas, pero `PantallaConsultaEstFruta` y `PantallaDatosGuardadosCelular` leen el campo guardado y muestran el número equivocado. Sin diagnosticar — ver [frutasTotales desactualizado](ESTFRUTA_HISTORIAL.md#frutastotales-desactualizado) |
 | Doble grafía de campos en los documentos (`Cosecha` y `cosecha` conviviendo), con algunos pares cruzados de tipo | Documentos en Firestore | El encabezado se crea con mayúsculas y `updateDoc` agrega después las minúsculas; al fusionar quedan los dos juegos | No rompe nada hoy porque la normalización con `??` lo absorbe, pero duplica almacenamiento y es una trampa para código nuevo. Backfill de limpieza pendiente, no decidido. Ver [doble grafía](#doble-grafia-campos) |
 | Exposición permanente de `estimaciones` (lectura y escritura sin autenticación) | `firestore.rules` + `authService.js` | No hay Firebase Auth, así que `request.auth` es `null` y las reglas solo validan forma | Antes la fecha de expiración actuaba como cierre forzado; ahora no hay ninguno. Se cierra con la Fase 6 del plan multiempresa |
 

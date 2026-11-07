@@ -243,9 +243,42 @@ Más `EstimationHeaderPage.js`: el chequeo de duplicados al crear ignora anulado
 
 No hizo falta migrar datos: los documentos existentes no tienen el campo y la comparación es `!== true`, así que pasan el filtro.
 
-### Dato pendiente de limpiar
+### Limpieza de datos — hecha el 2026-11-07
 
-Los registros verificados por el bug 1 tienen `verificado: true` **sin** `aprobadoPor`. Esa es la forma de identificarlos en Firestore y devolverlos a pendiente para que un supervisor los revise de verdad. No se hizo todavía.
+Auditoría de los 26 documentos de `estimaciones` (todos de 2026), leyendo la API REST de Firestore:
+
+| | |
+|---|---|
+| Total de documentos | 26 |
+| Anulados | 5 |
+| Vigentes | 21 |
+| Vigentes con aprobación real (`aprobadoPor`) | **0** |
+
+O sea: **ningún registro de la base tenía una aprobación real de supervisor.** Todos los círculos verdes de la app venían del bug 1.
+
+Antes de tocar nada se verificó si el dato de fondo estaba bien: en los 21 vigentes, la suma de `cantidadDelta` del array `detalle` **coincide exactamente** con `PtasMues`. El muestreo estaba bien hecho; lo único que faltaba era el acto de aprobación.
+
+**Acción tomada:** a esos 21 se les escribió `verificado: false` más `verificacionReseteadaEn` (timestamp) como marca de auditoría, vía PATCH con `updateMask` para no tocar ningún otro campo. Los 5 anulados se dejaron como estaban. Verificado después: 21 pendientes, 0 verificados sin aprobación, los 21 con el `detalle` intacto.
+
+Quedan a la espera de que el Supervisor Estimacion los apruebe con el botón ✓ — los 21 pasan la validación, así que es un toque por registro.
+
+<a id="frutastotales-desactualizado"></a>
+### Hallazgo colateral: `frutasTotales` guardado está desactualizado
+
+En la misma auditoría apareció otro problema, **no relacionado con los tres bugs de arriba**: en **20 de los 21 documentos vigentes**, el campo agregado `frutasTotales` que está guardado en Firestore no coincide con la suma real del `detalle`.
+
+| Parcela | `PtasMues` | `frutasTotales` guardado | Suma real del `detalle` |
+|---|---|---|---|
+| GF 5-20, Lote 11, Parcela 40 | 448 | **3** | 448 |
+| GF 5-20, Lote 11, Parcela 3 | 1008 | **3** | 1008 |
+| GF 11-12, Lote 21, Parcela 11 | 2660 | **0** | 2660 |
+| GF 11-12, Lote 2, Parcela 58 | 3087 | **2** | 3087 |
+
+Las pantallas de análisis (Patrón A) recalculan desde `detalle`, así que **las proyecciones de cajas/ha no están afectadas**. Pero `PantallaConsultaEstFruta` y `PantallaDatosGuardadosCelular` (Patrón B) leen los campos guardados tal cual, así que ahí ese número se muestra mal.
+
+Es exactamente la fragilidad que el CODEX ya advertía: los dos motores de cálculo (`estimationBusinessRules.js` al guardar, `estfrutaAnalysisService.js` al consultar) no están sincronizados.
+
+**Sin diagnosticar todavía.** Hay que averiguar en qué momento se escribe ese valor y por qué queda con el conteo de las primeras pulsaciones en vez del total final — probablemente se guarda el agregado antes de que el `detalle` esté completo. No se tocó ningún dato: corregirlo requiere entender primero el flujo de escritura.
 
 ---
 
