@@ -10,7 +10,6 @@ import {
       doc,
       getDoc,
       updateDoc,
-      deleteDoc,
     } from 'firebase/firestore';
 import { deriveGf } from '../domain/estimationBusinessRules';
 import { db } from '../firebaseConfig.js';
@@ -219,7 +218,8 @@ function EstimationSamplingEditPage({ user }) {
   };
 
   // ─────────────────────────────────────────────
-  // handleDelete: bloqueado si no es Supervisor Estimacion o no está en modo edición
+  // handleDelete: ANULA el registro (borrado logico).
+  // Bloqueado si no es Supervisor Estimacion o no esta en modo edicion.
   // ─────────────────────────────────────────────
   const handleDelete = async () => {
     if (!isSupervisorEstimacion || !isEditing) return;
@@ -227,7 +227,9 @@ function EstimationSamplingEditPage({ user }) {
     console.log('handleDelete invoked');
     console.log('handleDelete id:', id);
  
-    const confirmar = window.confirm('¿Está seguro de eliminar este registro?');
+    const confirmar = window.confirm(
+      '¿Anular este registro? Dejara de aparecer en consultas y analisis, pero se conserva en la base para auditoria.'
+    );
     if (!confirmar) {
       console.log('handleDelete: user cancelled');
       return;
@@ -235,15 +237,22 @@ function EstimationSamplingEditPage({ user }) {
     console.log('handleDelete: user confirmed');
  
     try {
-      const reference = doc(db, 'estimaciones', id);
-      console.log('handleDelete: deleting doc ref', reference);
-      await deleteDoc(reference);
-      console.log('handleDelete: deletion successful for id', id);
-      alert('Registro eliminado');
+      // 2026-11-07: borrado logico. firestore.rules tiene allow delete: if false
+      // (intencional, para no perder trazabilidad de quien capturo cada muestreo),
+      // por lo que deleteDoc siempre fallaba con "Missing or insufficient
+      // permissions". En su lugar se marca el registro como anulado; las pantallas
+      // de consulta y analisis lo excluyen y el documento queda para auditoria.
+      await updateDoc(doc(db, 'estimaciones', id), {
+        anulado: true,
+        anuladoPor: resolvedUser?.Usuario ?? 'Supervisor',
+        anuladoEn: new Date(),
+      });
+      console.log('handleDelete: registro anulado', id);
+      alert('Registro anulado');
       navigate('/estimaciones');
     } catch (error) {
-      console.error('handleDelete: error deleting document', error);
-      alert('Error al eliminar: ' + (error?.message || String(error)));
+      console.error('handleDelete: error anulando documento', error);
+      alert('Error al anular: ' + (error?.message || String(error)));
     }
   };
  
@@ -371,7 +380,11 @@ function EstimationSamplingEditPage({ user }) {
   const headerGf = header?.GF;
  
   const countsMatch = canCreateEstimationRecord({
-      PtasMuest,
+      // 2026-11-07: el parametro se llama ptasMuestras en canCreateEstimationRecord.
+      // Antes se pasaba como "PtasMuest", asi que llegaba undefined y countsMatch
+      // era SIEMPRE false: el boton Aprobar quedaba deshabilitado para todos los
+      // registros y ningun muestreo podia verificarse por la via correcta.
+      ptasMuestras: PtasMuest,
       frutasTotales: safeFrutasTotales,
         });
   // Allow saving even if GF is not present (backwards-compatible)
@@ -451,20 +464,17 @@ function EstimationSamplingEditPage({ user }) {
   return (
     <div className="sampling-shell">
       <header className="sampling-shell__header">
-        {/* ── Botón Volver: siempre habilitado para todos los roles ── */}
+        {/* ── Botón Volver: siempre habilitado para todos los roles.
+              Solo navega hacia atras. NO marca el registro como verificado.
+              2026-11-07: aqui habia un updateDoc que escribia verificado:true, sin
+              control de rol, de modo que cualquier usuario (Muestreador incluido)
+              daba por verificado un muestreo con solo salir de la pantalla, sin
+              validar Total == PtasMues y sin dejar constancia de quien aprobo.
+              La verificacion es exclusiva del Supervisor Estimacion, mediante el
+              boton Aprobar, que si valida y escribe aprobadoPor/aprobadoEn. ── */}
         <button
           className="sampling-back-button"
-          onClick={async () => {
-            // Marcar como verificado:true al regresar (comportamiento existente)
-            if (id) {
-              try {
-                await updateDoc(doc(db, 'estimaciones', id), { verificado: true });
-              } catch (err) {
-                console.error('Error marcando verificado:', err);
-              }
-            }
-            navigate(-1);
-          }}
+          onClick={() => navigate(-1)}
         >
           ⬅ 
         </button>

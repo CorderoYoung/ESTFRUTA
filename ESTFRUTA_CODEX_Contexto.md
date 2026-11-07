@@ -1,5 +1,9 @@
 # ESTFRUTA CODEX — Archivo Técnico del Proyecto
 
+> 📄 **El historial fechado vive aparte**, en `ESTFRUTA_HISTORIAL.md`: auditorías, incidentes y bugs ya resueltos, con su diagnóstico completo. Este documento es la referencia operativa — lo que hay que saber antes de tocar código. Si algo de aquí te sorprende, la explicación de por qué es así suele estar en el historial.
+
+---
+
 ## Contexto General
 App React para gestión de estimaciones de cosecha de piña.  
 Funciona **online y offline** (muestreadores de campo). Usa Firebase como backend.
@@ -176,19 +180,25 @@ const canEdit = puedeEditar(rol, PANTALLAS.CONSULTA_EST_FRUTA);
 
 ### Matriz de permisos
 
+> ⚠️ **Tabla re-derivada del código el 2026-11-07.** La versión anterior de este CODEX tenía varias filas equivocadas (sobre todo la columna Admin y la fila de PantallaConsultaEstFruta). Si hay duda, manda `src/constants/permissions.js`, no esta tabla.
+
 | Pantalla | Admin | Sup.Est | Sup.Cos | Logist. | Ger.Gen | Ger.Pro | Muestreador |
 |---|---|---|---|---|---|---|---|
-| PantallaConsultaEstFruta | C/E | C/E | C | C | C | C | C |
+| PantallaConsultaEstFruta | C/E | C/E | C/E | C/E | C/E | C/E | C/E |
 | EstimacionSamplingEditPage | C/E | C/E | C | C | C | C | C |
-| EstimationHeaderPage | C/E | C/E | C | C | C | C | C/E |
-| EstimacionSamplingPageTF | C/E | C | C | C | C | C | C/E |
-| PantallaAnalisisGF_Lote | C/E | C | C | C | C | C | — |
-| PantallaAnalisisParcelaDetalle | C/E | C | C | C | C | C | — |
+| EstimationHeaderPage | C | C | C | C | C | C | **C/E** |
+| EstimacionSamplingPageTF | C/E | C/E | C | C | C | C | C/E |
+| PantallaAnalisisGF_Lote | C | C | C | C | C | C | — |
+| PantallaAnalisisParcelaDetalle | C | C | C | C | C | C | — |
 | PantallaDatosGuardadosCelular | C/E | C/E | C | C | C | C | C/E |
-| PantallaEstimacionPorGF | C/E | C | C | C | C | C | — |
-| PantallaEstimacionPorSeccion | C/E | C | C | C | C | C | — |
+| PantallaEstimacionPorGF | C | C | C | C | C | C | — |
+| PantallaEstimacionPorSeccion | C | C | C | C | C | C | — |
 
 > C/E = Consulta/Edición · C = Consulta · — = Ninguno
+
+> ⚠️ **Solo el Muestreador puede iniciar un muestreo.** `EstimationHeaderPage` es la única pantalla donde el Muestreador tiene edición y los demás no — incluido el Administrador. El botón "Iniciar muestreo" usa `disabled={!canEdit || hasPendingVerification}`, así que con cualquier otro rol aparece gris. No es un bug.
+
+> ⚠️ **La matriz casi no se aplica.** Solo dos pantallas la consultan: `PantallaConsultaEstFruta` y `EstimationHeaderPage`. `EstimationSamplingEditPage` **no importa `permissions.js`**: usa su propio `isSupervisorEstimacion = rol === ROLES.SUPERVISOR_ESTIMACION` para guardar, aprobar y anular. Las seis restantes no aplican ningún control de rol. Antes de confiar en una celda de esta tabla, verificá que la pantalla efectivamente la lea.
 
 ### Permisos de administración de usuarios (preparados, no implementados)
 
@@ -294,89 +304,6 @@ Ambos parten del array `detalle` crudo y recalculan por separado. **No son redun
 
 ---
 
-<a id="auditoria-motores-calculo"></a>
-## Auditoría de Motores de Cálculo — 2026-07-28 ✅ Decidido e implementado (Opción A)
-
-> Origen: revisión solicitada por Freddy antes de iniciar la Fase Multiempresa (S8/S9). Diagnóstico inicial hecho aquí; segunda opinión pedida a Claude Code (en VS Code, sobre `C:\proyectos\estfruta`) para confirmar antes de decidir — ambos coincidieron. Implementado el mismo día en `C:\proyectos\estfruta` (git, 36 cambios pendientes de esa sesión incluidos estos).
-
-### Inventario real: son 5 implementaciones de la proyección de cajas, no 2
-
-La sección anterior documenta 2 motores con propósitos distintos (conteo de frutas vs. proyección de cajas). Pero dentro del motor de **proyección de cajas** (`% empacable → cajas por tamaño → /8 no empacables`), la fórmula está reimplementada 5 veces en archivos distintos, cada una con su propio criterio de redondeo:
-
-| # | Archivo → función | Usado por | Criterio de redondeo del total |
-|---|---|---|---|
-| 1 | `estfrutaAnalysisService.js` → `calcularEstimacion()` | `PantallaEstimacionPorSeccion.jsx` | Redondeo al final: `round(Σ cajas sin redondear)` |
-| 2 | `PantallaEstimacionPorGF.js` → `calcularGF()` | Pantalla Estimación por GF | Mixto: `cajasExport` = redondeo al final; `totalCajasTabla` (tabla T5–T12) = suma de cada tamaño ya redondeado |
-| 3 | `PantallaAnalisisGF_Lote.js` → `calcularAgrupado()` | Resumen del lote | Redondeo por tamaño: `Σ cajasRedondeadasPorTam` |
-| 4 | `PantallaAnalisisGF_Lote.js` → `calcularParcela()` | Fila de cada parcela en la lista | Redondeo al final |
-| 5 | `PantallaAnalisisParcelaDetalle.jsx` → `calcular()` | Detalle de esa misma parcela | Redondeo por tamaño |
-
-Ninguna de las 4 pantallas de análisis por GF/Lote/Parcela llama a `estfrutaAnalysisService.js`; cada una duplica la fórmula a mano con su propio criterio de redondeo.
-
-### Bugs concretos encontrados
-
-**1. Mismo dato, dos pantallas, dos números.** `PantallaAnalisisGF_Lote.js` (función 4, lista de parcelas) y `PantallaAnalisisParcelaDetalle.jsx` (función 5, detalle de esa parcela) calculan la **misma parcela** con criterios de redondeo distintos. Al navegar de la lista al detalle (botón 📈), "Cajas Exp" puede cambiar de valor, y como "Cajas/Ha" está coloreado por umbral (verde ≥7500, naranja ≥5500, rojo <5500), **el color puede cambiar entre pantallas para la misma parcela.**
-
-**2. Inconsistencia dentro de la misma pantalla.** En `PantallaEstimacionPorGF.js`, la tabla T5–T12 (suma de `cajasRedondeadasPorTamano`) y el renglón "Cajas Empacables" del resumen (`cajasExport`) pueden no coincidir, por el criterio de redondeo mixto dentro de la propia `calcularGF()`.
-
-**3. Código muerto que revela un tercer criterio — ✅ decisión tomada 2026-07-28 (confirmado con datos reales de producción).** `PantallaAnalisisGF_Lote.js` calcula `resLoteDetalle` (suma de las proyecciones individuales por parcela) pero **nunca lo renderiza** en el JSX. Da un tercer valor de "cajas del lote" distinto de `resLote.cajasExport` (que agrega los conteos crudos del lote y proyecta una sola vez) — no son equivalentes salvo que todas las parcelas tengan el mismo % de empaque.
-
-Freddy reportó el caso real en producción: GF 11-12, Lote 21, dos parcelas (PC 21-11: 4808 cajas / 0.75 ha; RC 21-28: 1340 cajas / 0.21 ha). Suma de filas = 6148 cajas → 6148/0.96 = 6404 cajas/ha. El encabezado del lote mostraba **6141 cajas / 6397 cajas·ha** — no coincide con la suma, y a simple vista parece un bug.
-
-No lo es: `calcularAgrupado()` combina las muestras crudas (tamaños + defectos) de las dos parcelas y calcula un único % de empaque para el lote completo antes de proyectar; cada fila usa su propio % de empaque calculado por separado. Como el % de empaque de PC y RC no es igual, "combinar-primero" (6141) y "sumar-proyecciones-separadas" (6148) dan resultados distintos — es la misma razón matemática por la que en S11 se prefirió redondeo-al-final sobre suma-de-redondeados: agregar antes de proyectar es más robusto que sumar proyecciones calculadas por separado.
-
-**Decisión (Opción 1 de 3 presentadas):** mantener `resLote.cajasExport`/`cajasHa` (agregar-primero) como el número oficial del encabezado — no cambiarlo a la suma de filas. Se agregó una nota visual bajo el resumen del lote (`.agl-resumen-nota` en `PantallaAnalisisGF_Lote.js`/`.css`) aclarando "Total del lote (muestras combinadas) — no es la suma de las parcelas de abajo", para que no se lea como un error en campo. `resLoteDetalle` se dejó tal cual (código muerto, sin usar).
-
-**4. Clamping inconsistente entre guardar y consultar.** `estimationBusinessRules.js → aggregateFrutasFromDetalle()` (al guardar) hace `Math.max(0, Math.trunc(suma))` por clave — descarta netos negativos por tamaño/defecto. Ninguno de los 5 motores de proyección hace este clamping: suman los deltas crudos tal cual. Si alguna corrección deja un neto negativo en algún código, lo guardado en Firebase y lo mostrado en análisis pueden divergir más allá del simple redondeo.
-
-**5. Convención `??` vs `||` rota.** `PantallaEstimacionPorSeccion.jsx` arma la cabecera con `||` (líneas 48–58: `data.Tipo || data.tipo`, `Number(data.PtasEstac || ...)`, etc.) en vez de `??`, contra la Regla 8 de este documento ("usar `??` para no descartar 0 válidos").
-
-### Por qué importa antes de multiempresa
-
-La migración multiempresa va a tocar exactamente estos mismos archivos (todas sus queries `getDocs`/`getDoc` necesitan `where('empresaId', ...)` — ver inventario en [Plan Multiempresa](#plan-multiempresa--decisión-de-seguridad)). Si se modifican sin unificar antes el criterio de redondeo, la inconsistencia se arrastra a las nuevas queries y se vuelve más difícil distinguir "bug de redondeo preexistente" de "bug introducido por el filtro de empresa".
-
-### Decisión — 2026-07-28: Opción A (unificar en un solo motor)
-
-Confirmada con segunda opinión de Claude Code sobre el mismo código (`C:\proyectos\estfruta`), que recalculó el fixture de forma independiente y llegó a la misma conclusión. Especificación de la decisión:
-
-**1. Criterio de redondeo canónico: redondeo al final, no por tamaño.**
-`totalCajas` (el KPI que alimenta "Cajas Exp" y el color de "Cajas/Ha") debe calcularse siempre como `round(Σ cajas por tamaño sin redondear)`. Sumar 8 valores ya redondeados por separado puede acumular hasta ±4 cajas de error frente al estimado continuo, y con umbrales de color en 7500/5500 cajas/ha ese ruido puede cambiar el semáforo de una parcela sin que haya cambiado el dato real — es un defecto, no una variante de negocio válida.
-
-**2. El redondeo por tamaño se conserva, pero solo como cosmético para la tabla T5–T12.**
-Es correcto y necesario para que las filas de la tabla (cuántas cajas de talla 7 hubo) sean números enteros presentables. Pero esa suma de filas **nunca debe retroalimentar** el KPI, el color de Cajas/Ha, ni ningún otro total mostrado.
-
-**3. Extraer una única función `proyectarCajas(tamanos, defectos, ptasEst, area)` en `estfrutaAnalysisService.js`.**
-Las 5 implementaciones hacen la misma matemática de 3 etapas (% empacable → cajas por tamaño → no-empacables/8) sobre la misma forma de entrada. `calcularGF` y `calcularAgrupado` solo agregan varios documentos antes de proyectar (pre-procesamiento del input, no una variante del algoritmo); `calcularParcela` y `calcular()` operan sobre un único documento (mismo caso, N=1). No hay ninguna diferencia de negocio real entre los 5 sitios — es deuda técnica de copy-paste, no una decisión de diseño.
-
-**4. Validación contra el fixture del Sprint 1.**
-Recalculado dos veces de forma independiente con los datos de prueba (`ptasEst: 44379, área: 0.75`): suma sin redondear ≈ 4808.01 → round-final → **4808**, que coincide con el valor documentado. En este dataset específico la suma de tamaños ya redondeados también da 4808 — coincidencia de estos números (solo T10 cruza el 0.5), no evidencia de que los dos métodos sean equivalentes en general.
-
-**Implementado — 2026-07-28, en `C:\proyectos\estfruta`:**
-
-- `src/services/estfrutaAnalysisService.js`: se agregó `export function proyectarCajas({ tamanos, totalDefectos, ptasEst, area })`. **No se tocó `calcularEstimacion()`** (sigue siendo el motor validado, usado sin cambios por `PantallaEstimacionPorSeccion.jsx`) — `proyectarCajas()` es una función nueva con la misma matemática, pensada para recibir `tamanos`/`totalDefectos` ya agregados en vez de un `detalle` crudo.
-- `src/pages/PantallaEstimacionPorGF.js` → `calcularGF()`: ahora llama a `proyectarCajas()`. `cajasExport`, `cajasHa`, `totalDisp`, `cajasHaTotal` vienen siempre de `proyeccion.totalCajas` (round-final). `totalCajasTabla` se conserva solo como dato informativo de la tabla T5–T12.
-- `src/pages/PantallaAnalisisGF_Lote.js` → `calcularAgrupado()` y `calcularParcela()`: ambas migradas a `proyectarCajas()`. `resLoteDetalle` se dejó intacto — sigue sin usarse en el render.
-- `src/pages/PantallaAnalisisParcelaDetalle.jsx` → `calcular()`: migrada a `proyectarCajas()`. Este era el bug #1 concreto.
-
-**Validación:** creado `src/services/estfrutaAnalysisService.test.js` (Jest, corre independiente del resto de la app) con el fixture del Sprint 1. Freddy lo corrió con `npm test -- --watchAll=false --testPathPattern=estfrutaAnalysisService`:
-
-```
-PASS  src/services/estfrutaAnalysisService.test.js
-Test Suites: 1 passed, 1 total
-Tests:       4 passed, 4 total
-```
-
-Los 4 tests cubren: (1) `calcularEstimacion()` sigue dando `totalCajas 4808 / cajasNoEmpacables 780 / totalCajasGeneral 5588 / cajasHaEmpacables 6411 / cajasHaTotal 7451`; (2) `proyectarCajas()` da exactamente los mismos 5 valores con `tamanos`/`totalDefectos` ya agregados; (3) ambas funciones coinciden entre sí para el mismo input; (4) documenta que `totalCajas` (KPI) y la suma de `cajasRedondeadasPorTamano` (cosmética) coinciden en este fixture, pero deja explícito que solo `totalCajas` es el KPI válido.
-
-(`App.test.js` — el test por defecto de CRA sobre `src/App.js`, el archivo **no usado** — sigue fallando por un `node_modules/react-router-dom` faltante; problema de instalación preexistente.)
-
-✅ **Sincronizado entre copias — 2026-07-28.** El cambio (S11 y S12) se replicó en `OneDrive - Martial Vox\proyectos\estfruta`; ambas carpetas quedaron idénticas en estos 5 archivos + el test nuevo. (Histórico: esa segunda copia se descartó el 2026-11-07 — ver [Copia única del proyecto](#copia-unica).)
-
-### Estado
-✅ **Decidido, implementado, validado con test automatizado y sincronizado entre ambas copias del código** (S11 y S12).
-
----
-
 ## Patrones de consulta a Firestore — Auditado
 
 Hay dos patrones distintos conviviendo en las pantallas:
@@ -454,7 +381,12 @@ PantallaConsultaEstFruta
     { tipoLinea: 'DEFECTO', codigoClasificacion: 'Muerta', cantidadDelta: 144 },
     ...
   ],
-  verificado: true   // ← campo agregado en Sprint 2
+  verificado: true,   // ← campo agregado en Sprint 2
+  aprobadoPor,        // ← String — quién aprobó (solo lo escribe handleAprobar)
+  aprobadoEn,         // ← Date — cuándo se aprobó
+  anulado: true,      // ← Boolean — borrado lógico (S15). Si falta, el registro está vigente
+  anuladoPor,         // ← String — quién anuló
+  anuladoEn,          // ← Date — cuándo se anuló
   // empresaId: string  ← campo a agregar en Fase Multiempresa (aún no implementado)
 }
 ```
@@ -473,7 +405,7 @@ Además hay duplicación de tipo: `Poblacion: "10010"` (string) junto a `ptasEst
 **Por qué pasa:** el encabezado se crea con los campos en mayúscula, y después `estimationService.js` hace `updateDoc` con el payload en minúscula. Como `updateDoc` fusiona en vez de reemplazar, el documento termina con los dos juegos.
 
 **Consecuencias prácticas:**
-1. La validación de `firestore.rules` que exige `Cosecha`/`Tipo`/`Lote`/`Parcela` (mayúscula) **sí se cumple** — tanto al crear (el encabezado los trae) como al actualizar (`request.resource.data` en un update es el documento fusionado resultante, que ya los contiene). Ver [Incidente de reglas vencidas](#incidente-reglas-2026-11-07).
+1. La validación de `firestore.rules` que exige `Cosecha`/`Tipo`/`Lote`/`Parcela` (mayúscula) **sí se cumple** — tanto al crear (el encabezado los trae) como al actualizar (`request.resource.data` en un update es el documento fusionado resultante, que ya los contiene). Ver [Incidente de reglas vencidas](ESTFRUTA_HISTORIAL.md#incidente-reglas-2026-11-07).
 2. **No "corregir" las reglas a minúscula** pensando que hay un mismatch: eso rompería la creación de encabezados.
 3. La Regla 8 (`??` en vez de `||`) y el orden de prioridad de la normalización existen precisamente por esta doble grafía. No es cosmético: elegir mal la prioridad hace que una pantalla lea el valor equivocado.
 4. Limpiar esto (quedarse con un solo juego de campos) es un backfill pendiente, no decidido. Mientras tanto, toda lectura nueva debe usar el patrón de normalización de abajo.
@@ -568,7 +500,7 @@ pages/PantallaEstimacionPorGF.css
 7. **Gráfico Motivos de No Empaque** — top 12 defectos ordenados mayor→menor. Clase `.pgf-chart-card pgf-defects-card`.
 
 ### Motor de cálculo interno — `calcularGF(registrosFiltrados)`
-> Desde 2026-07-28 (S11) llama a `proyectarCajas()` de `estfrutaAnalysisService.js` para el KPI y el color — ya no reimplementa la fórmula a mano. Ver [Auditoría de Motores de Cálculo](#auditoria-motores-calculo).
+> Desde 2026-07-28 (S11) llama a `proyectarCajas()` de `estfrutaAnalysisService.js` para el KPI y el color — ya no reimplementa la fórmula a mano. Ver [Auditoría de Motores de Cálculo](ESTFRUTA_HISTORIAL.md#auditoria-motores-calculo).
 
 ```js
 function extraerMuestras(doc)
@@ -745,7 +677,7 @@ Desde `PantallaAnalisisGF_Lote` → botón 📈 de cada fila de parcela.
 ```
 
 ### Motor de cálculo propio
-`PantallaAnalisisParcelaDetalle` tiene su propia función `calcular(data)`, que desde 2026-07-28 (S11) llama a `proyectarCajas()` de `estfrutaAnalysisService.js` para el KPI y el color de "Cajas/Ha" (antes usaba suma de tamaños ya redondeados, bug #1 — ver [Auditoría de Motores de Cálculo](#auditoria-motores-calculo)). `calcular()` sigue siendo dueña de la lectura del documento y del top de defectos; solo la proyección de cajas se delegó.
+`PantallaAnalisisParcelaDetalle` tiene su propia función `calcular(data)`, que desde 2026-07-28 (S11) llama a `proyectarCajas()` de `estfrutaAnalysisService.js` para el KPI y el color de "Cajas/Ha" (antes usaba suma de tamaños ya redondeados, bug #1 — ver [Auditoría de Motores de Cálculo](ESTFRUTA_HISTORIAL.md#auditoria-motores-calculo)). `calcular()` sigue siendo dueña de la lectura del documento y del top de defectos; solo la proyección de cajas se delegó.
 
 ### CSS — clase especial
 ```css
@@ -769,87 +701,7 @@ Desde `PantallaAnalisisGF_Lote` → botón 📈 de cada fila de parcela.
 - Resumen superior muestra totales del lote seleccionado
 - Al volver con GF fijado: botón `←` navega a `/estimaciones/gf` (no `navigate(-1)`)
 - `calcularAgrupado()` (usado para el total del lote) y `calcularParcela()` (usado por fila de parcela) llaman a `proyectarCajas()` desde 2026-07-28 (S11). `resLoteDetalle` sigue existiendo como código muerto (suma proyecciones individuales por parcela, nunca renderizado) — no se tocó porque no se usa.
-- El total del lote (`resLote.cajasExport`/`cajasHa`) **no es la suma de las filas de parcela** — es el resultado de combinar las muestras crudas de todas las parcelas del lote y proyectar una sola vez. Confirmado como comportamiento correcto (no bug) el 2026-07-28 con un caso real de producción; se agregó `.agl-resumen-nota` en la UI para aclararlo. Ver [Auditoría de Motores de Cálculo](#auditoria-motores-calculo), bug #3.
-
----
-
-<a id="incidente-reglas-2026-11-07"></a>
-## Firestore Rules — Incidente de vencimiento (2026-11-07) ✅ RESUELTO
-
-> ⚠️ **Lección principal: la app estuvo caída 68 días sin que nadie lo detectara.** Las reglas publicadas tenían fecha de expiración `2026-08-31`. A partir del 1 de setiembre de 2026, Firestore rechazó **todo** acceso (lectura y escritura) para todos los usuarios. Nadie lo notó hasta el 7 de noviembre. Si se vuelve a poner una fecha de expiración en las reglas, poner también un recordatorio de calendario — el CODEX solo no alcanzó.
-
-### Qué pasaba
-
-La condición `request.time < timestamp.date(2026, 9, 1)` aparecía en **tres** lugares de `firestore.rules`, no en uno:
-
-```js
-allow read:   if request.time < timestamp.date(2026, 9, 1);   // línea 31
-allow create: if request.time < timestamp.date(2026, 9, 1)    // línea 33
-              && ...
-allow update: if request.time < timestamp.date(2026, 9, 1)    // línea 42
-              && ...
-```
-
-Se verificó en la consola de Firebase que las reglas **publicadas** (versión del 17-jun-2026) eran idénticas a las del repositorio — es decir, la app efectivamente llevaba desde el 1 de setiembre sin poder leer ni escribir.
-
-### Qué se hizo — 2026-11-07
-
-Se reemplazaron las tres condiciones de fecha por `true`, sin tocar nada más: las validaciones de forma (`hasAll(['Cosecha','Tipo','Lote','Parcela'])` y los chequeos de tipo) quedaron intactas, y `allow delete: if false` sigue bloqueando borrados.
-
-- Publicado en la consola de Firebase (nueva versión activa: 7-nov-2026, 10:09 a.m.).
-- Archivo `C:\proyectos\estfruta\firestore.rules` actualizado y dejado idéntico a lo publicado.
-- **Verificado end-to-end:** lectura sin autenticar contra `https://firestore.googleapis.com/v1/projects/estfruta/databases/(default)/documents/estimaciones?pageSize=1` → HTTP 200, documento devuelto. Firestore responde otra vez.
-- La copia de OneDrive quedó descartada ese mismo día — ver [Copia única del proyecto](#copia-unica).
-
-### ❌ Corrección a lo que decía este CODEX: NO hay "mismatch crítico" de mayúsculas
-
-La versión anterior de este documento afirmaba, en mayúsculas y con ⚠️, que `estimationService.js` guarda en minúscula mientras las reglas exigen mayúscula, y que por lo tanto **"toda escritura a `estimaciones` está siendo rechazada hoy mismo"**. **Eso era falso**, y la Fase 0.1 del plan multiempresa se puede cerrar sin trabajo.
-
-Por qué era falso, verificado contra un documento real de producción:
-
-1. Los documentos contienen **las dos grafías a la vez** — ver [Los documentos reales tienen las dos grafías conviviendo](#doble-grafia-campos). El encabezado se crea con `Cosecha`/`Tipo`/`Lote`/`Parcela` en mayúscula.
-2. Al **crear**, `request.resource.data` trae las mayúsculas → `hasAll([...])` pasa.
-3. Al **actualizar**, `request.resource.data` en Firestore es el documento **fusionado resultante**, no solo los campos enviados. Como el documento ya tenía las mayúsculas, `hasAll([...])` también pasa, aunque `estimationService.js` mande solo minúsculas.
-
-> ⚠️ **No "arreglar" las reglas cambiando las mayúsculas a minúsculas.** Sería introducir el bug que el CODEX creía que ya existía: rechazaría la creación de encabezados nuevos.
-
-### Estado actual de `firestore.rules` (post-arreglo)
-
-- Sin fecha de expiración.
-- Siguen marcadas como "TEMPORALES DE PRUEBA — NO aptas para producción", y con razón: ver abajo.
-- `allow read: if true` — cualquiera puede leer, sin restricción de identidad.
-- `allow create` / `allow update` — validan **forma** del documento (campos en mayúscula presentes), no identidad.
-- `allow delete: if false` — eliminación bloqueada siempre ✅
-
-### Lo que las reglas NO pueden hacer sin Firebase Auth
-
-Sin `request.auth` (siempre `null` en la arquitectura actual), las reglas no pueden:
-- Verificar a qué empresa pertenece quien hace el request
-- Impedir que un usuario de Empresa A lea datos de Empresa B
-- Validar roles (Muestreador, Supervisor, etc.) en el servidor
-
-> ⚠️ **La exposición sigue abierta y ya no tiene fecha de cierre automática.** Antes, la fecha de expiración actuaba como un cierre forzado (brutal, pero cierre). Ahora cualquiera con el `projectId` puede leer y escribir en `estimaciones` indefinidamente, hasta que se ejecute la Fase 6 del plan multiempresa (Firebase Auth + Custom Claims). La validación de forma no es seguridad: un atacante puede incluir esos cuatro campos sin esfuerzo. **Esta es ahora la razón principal para priorizar la Fase 6**, ya no el deadline de agosto.
-
----
-
-<a id="copia-unica"></a>
-## Copia única del proyecto — decisión 2026-11-07
-
-Hasta esta fecha el proyecto vivía en dos carpetas que había que mantener sincronizadas a mano: `C:\proyectos\estfruta` (con git, uso diario en VS Code) y una copia en OneDrive donde vivía este CODEX.
-
-**Esa segunda copia ya no existe y se descartó deliberadamente.** Al buscarla el 2026-11-07 no apareció en ningún lado de la máquina: ni bajo `C:\Users\Freddy Cordero` (solo hay `OneDrive` personal y `OneDrive - Mundifrenos`, esta última **vacía**), ni en la raíz de `C:\`, ni en `C:\proyectos\BACKUP`. El nodo "OneDrive - Martial Vox" que muestra el Explorador de Windows es solo una etiqueta: no corresponde a ninguna carpeta sincronizada en disco.
-
-**Desde ahora:**
-- `C:\proyectos\estfruta` es la **única** copia local. Tiene git, así que los cambios quedan versionados.
-- Este CODEX vive dentro de esa carpeta (`C:\proyectos\estfruta\ESTFRUTA_CODEX_Contexto.md`), ya no en OneDrive.
-- La copia de referencia compartida sigue siendo el project knowledge de Claude. Tras editar el CODEX o el plan, volver a subirlos ahí.
-- Ya **no** aplica la vieja regla de "aplicar cada cambio de código en ambas carpetas".
-
-### Por qué importaba: un cambio que se perdió sin aviso
-
-El mismo día, al escribir `firestore.rules` en el repo, una primera escritura **reportó éxito pero no se aplicó**. El archivo que quedó en disco fue una versión descartada, con los campos validados en **minúscula** — justo la variante que este documento advierte que rompería la creación de encabezados (ver [doble grafía](#doble-grafia-campos)). Se detectó solo porque se volvió a leer el archivo desde el disco en vez de confiar en la confirmación de "escrito".
-
-De ahí la regla 25: después de tocar `firestore.rules`, **leerlo de vuelta desde el disco y compararlo con lo publicado antes de hacer `firebase deploy`**. Un deploy desde esa carpeta en ese momento habría publicado reglas rotas encima de las buenas.
+- El total del lote (`resLote.cajasExport`/`cajasHa`) **no es la suma de las filas de parcela** — es el resultado de combinar las muestras crudas de todas las parcelas del lote y proyectar una sola vez. Confirmado como comportamiento correcto (no bug) el 2026-07-28 con un caso real de producción; se agregó `.agl-resumen-nota` en la UI para aclararlo. Ver [Auditoría de Motores de Cálculo](ESTFRUTA_HISTORIAL.md#auditoria-motores-calculo), bug #3.
 
 ---
 
@@ -857,7 +709,7 @@ De ahí la regla 25: después de tocar `firestore.rules`, **leerlo de vuelta des
 
 > 📄 **Plan de implementación fase por fase para la Opción B:** ver `ESTFRUTA_PLAN_MULTIEMPRESA_OPCION_B.md` (mismo directorio que este CODEX). Ese documento define el orden de ejecución y qué probar en cada paso. Nada de ese plan se ha ejecutado todavía.
 >
-> ⚠️ **El plan está desactualizado en dos puntos desde el 2026-11-07:** (a) su "deadline duro del 31 de agosto" ya pasó y quedó resuelto por el arreglo de reglas, así que ya no hay fecha forzando la Fase 6 — lo que la justifica ahora es la exposición permanente descrita arriba; (b) su tarea **0.1** (verificar el mismatch de mayúsculas) está cerrada: no había mismatch. Su tarea **0.2** (quitar el `throw` de depuración) sigue abierta y es más grande de lo que el plan supone — ver [Bugs pendientes](#bugs-pendientes).
+> ⚠️ **El plan está desactualizado en dos puntos desde el 2026-11-07:** (a) su "deadline duro del 31 de agosto" ya pasó y quedó resuelto por el arreglo de reglas, así que ya no hay fecha forzando la Fase 6 — lo que la justifica ahora es la exposición permanente descrita arriba; (b) su tarea **0.1** (verificar el mismatch de mayúsculas) está cerrada: no había mismatch. Su tarea **0.2** también está cerrada: el `throw` de depuración es código muerto inalcanzable, no bloquea nada (se comprobó creando estimaciones reales en producción).
 
 ### Concepto central
 Cada documento en Firestore debe saber a qué empresa pertenece. Todas las queries deben filtrar por `empresaId`. La clave de duplicados debe incluir `empresaId`.
@@ -888,7 +740,8 @@ Cada documento en Firestore debe saber a qué empresa pertenece. Todas las queri
 |---|---|
 | `authService.js` | Agregar `empresaId` (y `empresaNombre`) a cada usuario del array `USERS`. Incluirlos en el objeto de sesión que devuelve `authenticateUser`. Si se elige Opción B, reescribir completamente usando Firebase Auth. |
 | `AppTomaFisica.js` | El inicializador síncrono de `useState` ya lee `localStorage` — verificar que `empresaId` se conserve al parsear la sesión. |
-| `estimationService.js` | En cada `addDoc`/`setDoc`: inyectar `empresaId` (y opcionalmente `empresaNombre`) al `dbPayload`. En cada query (`checkFirebaseDuplicate`): agregar `where('empresaId', '==', empresaId)`. **Ojo:** hoy este archivo no tiene ningún `addDoc` operativo — ver [Bugs pendientes](#bugs-pendientes). |
+| `EstimationHeaderPage.js` | ⚠️ **Aquí vive el `addDoc` real** que crea las estimaciones (`guardarFirebase()`). Es el archivo donde hay que inyectar `empresaId` al crear. También hay que agregarlo al chequeo de duplicados y al payload que se guarda localmente en modo offline. |
+| `estimationService.js` | Inyectar `empresaId` en los `updateDoc`, y `where('empresaId','==',empresaId)` en `checkFirebaseDuplicate`. **Ojo:** este archivo NO crea documentos — su `requestCreateEstimation` es código muerto. No alcanza con tocar solo este archivo. |
 | `operationalDraftStorage.js` | `crearUniqueKey()`: agregar `empresaId` como primer segmento de la clave. |
 | `PantallaConsultaEstFruta.js` | Cambiar `getDocs(collection(db,'estimaciones'))` por `getDocs(query(collection(db,'estimaciones'), where('empresaId','==',user.empresaId)))`. **Este es el cambio más crítico.** |
 | `PantallaDatosGuardadosCelular.js` | Mismo cambio de query. Verificar también que los registros locales (`useOffline`) lleven `empresaId` al sincronizar. |
@@ -981,35 +834,9 @@ allow delete: if false;
 | S10 | Multiempresa — Fase 3 (Panel Administrador General) | ⏳ Futuro |
 | S11 | Unificar motores de cálculo de proyección de cajas (5 → 1) | ✅ Implementado, validado (test automatizado, 4/4 passed) y sincronizado en ambas copias del código (2026-07-28) |
 | S12 | Aclarar en UI que "Cajas Exp/Ha" del lote no es la suma de las parcelas (bug #3) | ✅ Implementado 2026-07-28 — nota visual agregada en `PantallaAnalisisGF_Lote.js`/`.css`, sin cambiar el cálculo (Opción 1) |
-| S13 | Quitar fecha de expiración de `firestore.rules` y reactivar Firestore | ✅ Implementado y publicado 2026-11-07. Verificado con lectura real contra la API (HTTP 200). Ver [Incidente de reglas vencidas](#incidente-reglas-2026-11-07) |
-| S14 | Restaurar el `addDoc` perdido en `requestCreateEstimation` | ⏳ **Pendiente — bloquea la creación de estimaciones nuevas.** Ver [Bugs pendientes](#bugs-pendientes) |
-
----
-
-## Bugs resueltos
-
-| Bug | Causa raíz | Solución |
-|---|---|---|
-| Navegación a `/seccion/:id` iba a login | `index.js` importaba `AppTomaFisica`, no `App.js` | Editar el archivo correcto |
-| `currentUser` llegaba `null` a `ProtectedRoute` | `useState(null)` + `useEffect` asíncrono | `useState(() => localStorage.getItem(...))` síncrono |
-| Sesión se perdía entre navegaciones | `sessionStorage` se borra con refresh | Cambiar a `localStorage` |
-| Ruta `/seccion/:id` no existía | Solo estaba en `App.js` (no usado) | Agregar a `AppTomaFisica.js` |
-| Botón 📈 no navegaba | No tenía `onClick` en el backup original | Agregar `navigate()` directo sin `setTimeout` |
-| "Debe verificar antes de regresar" | Validación con `savedSamplingId`/`verifiedSamplingId` | Reemplazar por `verificado: true` en Firebase |
-| Botón 📈 de parcela navegaba a `PantallaConsultaEstFruta` | Rutas nuevas solo en `App.js` y `AppConsultaEdicion.js`, no en `AppTomaFisica.js` | Agregar import y ruta en `AppTomaFisica.js` |
-| Lista mostraba Lote incorrecto | `data.lote \|\| data.Lote` — el número guardado tenía prioridad sobre el string correcto | Cambiar a `data.Lote ?? data.lote` (mayúscula primero, nullish) |
-| Tabla % tamaños se encogía en celular | Faltaba `table-layout: fixed` y `width: 12.5%` por celda | Agregar en base y en `@media (max-width: 600px)` |
-| Gráfico defectos con espacio vacío arriba | `.papd-card--defectos` tenía `flex: 1` | Eliminar `flex: 1`, fijar `height: 130px` igual que cajas |
-| Módulo no encontrado `PantallaAnalisisParcelaDetalle` | Archivo descargado como `.jx` en lugar de `.jsx` | Renombrar extensión en VS Code |
-| `ProtectedRoute` bloqueaba roles válidos | `permissions.js` tenía `"SupervisorEstimacion"` (sin espacio) y `"GerenteGeneral"` mientras `roles.js` tenía `'Supervisor Estimacion'` y `'Gerente General'` | Sincronizar valores string exactos en `permissions.js` con `roles.js` |
-| Error de compilación en `AppTomaFisica.js` | Importaba `getActiveUsers` y `authenticateUser` pero `authService.js` solo exportaba `USERS` y `validateCredentials` | Agregar ambas funciones con la firma correcta |
-| `navigate()` recibía `undefined` tras login | `authenticateUser` no devolvía `redirectPath` | Agregar `redirectPath: ROLE_ROUTES[user.Rol]` al objeto de retorno |
-| `setError` recibía `undefined` en login fallido | `authenticateUser` devolvía `message` pero `AppTomaFisica.js` lee `result.error` | Usar clave `error` (no `message`) en el objeto de retorno de error |
-| Muestreador asignado como `SUPERVISOR_ESTIMACION` | Confusión entre nombre de usuario visible y rol interno | Restaurar `ROLES.MUESTREADOR = 'Muestreador'` como rol independiente |
-| "Cajas Exp" y color de "Cajas/Ha" cambiaban entre lista de parcelas y detalle de parcela para el mismo registro | 5 implementaciones distintas de la fórmula de proyección de cajas, cada una con su propio criterio de redondeo | 2026-07-28 (S11): unificadas en `proyectarCajas()`, `totalCajas` (round-final) como único KPI. Ver [Auditoría de Motores de Cálculo](#auditoria-motores-calculo) |
-| Tabla T5–T12 y "Cajas Empacables" podían no sumar igual en `PantallaEstimacionPorGF.js` | `cajasExport` (redondeo al final) y `totalCajasTabla` (suma de tamaños ya redondeados) se calculaban con criterios distintos dentro de `calcularGF()` | 2026-07-28 (S11): `cajasExport`/`cajasHa` ahora vienen siempre de `proyeccion.totalCajas`; `totalCajasTabla` quedó como dato solo informativo |
-| "Cajas Exp/Ha" del encabezado del lote no coincide con sumar las filas de parcela (Lote 21: 6141 vs. 6148) | `calcularAgrupado()` agrega muestras crudas y proyecta una vez; cada fila usa su propio % de empaque — no son sumables entre sí | No es un bug de cálculo. 2026-07-28 (S12): se mantuvo el comportamiento y se agregó nota visual `.agl-resumen-nota` aclarándolo |
-| **App completamente caída: Firestore rechazaba toda lectura y escritura desde el 1-set-2026** | Las reglas publicadas tenían `request.time < timestamp.date(2026, 9, 1)` en `allow read`, `allow create` y `allow update`. La fecha venció y nadie lo detectó durante 68 días | 2026-11-07 (S13): las tres condiciones reemplazadas por `true` y publicadas en la consola. Verificado con lectura real contra la API REST (HTTP 200). Ver [Incidente de reglas vencidas](#incidente-reglas-2026-11-07) |
+| S13 | Quitar fecha de expiración de `firestore.rules` y reactivar Firestore | ✅ Implementado y publicado 2026-11-07. Verificado con lectura real contra la API (HTTP 200). Ver [Incidente de reglas vencidas](ESTFRUTA_HISTORIAL.md#incidente-reglas-2026-11-07) |
+| S14 | Corregir la verificación de muestreos (botón Volver + botón Aprobar) | ✅ Implementado y probado en producción 2026-11-07. Ver [Verificación y anulación](ESTFRUTA_HISTORIAL.md#bugs-verificacion-2026-11-07) |
+| S15 | Cambiar Eliminar por anulación (borrado lógico) en las 7 pantallas afectadas | ✅ Implementado y probado en producción 2026-11-07. Ver [Borrado lógico](ESTFRUTA_HISTORIAL.md#borrado-logico) |
 
 ---
 
@@ -1018,11 +845,14 @@ allow delete: if false;
 
 | Bug | Archivo | Causa raíz | Impacto |
 |---|---|---|---|
-| **No existe ningún `addDoc` operativo: no se pueden crear estimaciones nuevas** | `estimationService.js` | `addDoc` se importa en la línea 1 pero **no se llama en ninguna parte del archivo**. Las únicas escrituras reales son dos `updateDoc` (líneas ~199 y ~305). En la rama header-only de `requestCreateEstimation` quedó un `throw new Error(JSON.stringify(finalDbPayload))` de depuración (líneas ~104-106) justo donde debería ir el `addDoc`; el `catch` lo atrapa y devuelve `success: false`. La otra rama hace `updateDoc(doc(db,'estimaciones', draft.estimationId))`, que depende de que el encabezado ya exista | **Bloqueante.** Leer y actualizar estimaciones existentes funciona; crear nuevas, no. Verificado 2026-11-07, independiente del arreglo de reglas. Al restaurarlo, revisar de dónde sale `draft.estimationId` en la segunda rama y mapear el camino offline (`syncRegistro()`) antes de tocar nada |
+| Código muerto en `estimationService.js` con un `throw` de depuración adentro | `estimationService.js` | `requestCreateEstimation` tiene un `throw new Error(...)` de depuración donde iría un `addDoc`, y `addDoc` se importa sin usarse. **La función no se llama desde ningún lado** (el compilador lo confirma: *'requestCreateEstimation' is defined but never used*), así que el `throw` es inalcanzable | Ninguno funcional, pero es una trampa: hace creer que ahí se crean las estimaciones. Conviene borrar la función. La creación real está en `EstimationHeaderPage.js` → `guardarFirebase()` |
+| Registros verificados sin aprobación real | datos en Firestore | El bug del botón Volver (ver [verificación](ESTFRUTA_HISTORIAL.md#bugs-verificacion-2026-11-07)) marcó `verificado: true` sin `aprobadoPor` | Se identifican por tener `verificado: true` y no tener `aprobadoPor`. Pendiente devolverlos a estado no verificado |
 | Doble grafía de campos en los documentos (`Cosecha` y `cosecha` conviviendo), con algunos pares cruzados de tipo | Documentos en Firestore | El encabezado se crea con mayúsculas y `updateDoc` agrega después las minúsculas; al fusionar quedan los dos juegos | No rompe nada hoy porque la normalización con `??` lo absorbe, pero duplica almacenamiento y es una trampa para código nuevo. Backfill de limpieza pendiente, no decidido. Ver [doble grafía](#doble-grafia-campos) |
 | Exposición permanente de `estimaciones` (lectura y escritura sin autenticación) | `firestore.rules` + `authService.js` | No hay Firebase Auth, así que `request.auth` es `null` y las reglas solo validan forma | Antes la fecha de expiración actuaba como cierre forzado; ahora no hay ninguno. Se cierra con la Fase 6 del plan multiempresa |
 
-> ❌ **Ya NO es un bug:** el supuesto "mismatch de mayúsculas entre el payload y las reglas". Se verificó el 2026-11-07 contra un documento real y las escrituras sí pasaban la validación. Ver [Incidente de reglas vencidas](#incidente-reglas-2026-11-07).
+> ❌ **Ya NO es un bug:** el supuesto bloqueante de que "no se pueden crear estimaciones nuevas". Se diagnosticó mal el 2026-11-07 leyendo `estimationService.js` en aislamiento: la creación real vive en `EstimationHeaderPage.js` → `guardarFirebase()`, con su propio `addDoc`. Probado en producción el mismo día, online y offline.
+>
+> ❌ **Tampoco es un bug:** el supuesto "mismatch de mayúsculas entre el payload y las reglas". Se verificó el 2026-11-07 contra un documento real y las escrituras sí pasaban la validación. Ver [Incidente de reglas vencidas](ESTFRUTA_HISTORIAL.md#incidente-reglas-2026-11-07).
 
 ---
 
@@ -1053,11 +883,15 @@ allow delete: if false;
 20. **Multiempresa — campo `empresaId` es obligatorio en todo documento nuevo.** Tomado de `user.empresaId` en sesión, nunca pedirlo al usuario
 21. **Multiempresa — toda query de Firestore debe filtrar por empresa.** Nunca `getDocs(collection(db,'estimaciones'))` sin `where('empresaId','==',user.empresaId)`. Para `getDoc` por `id`, verificar después del fetch
 22. **Multiempresa — `crearUniqueKey()` debe incluir `empresaId` como primer segmento.** Sin esto, dos empresas con el mismo Lote/Parcela/Cosecha generan falsos positivos de duplicado
-23. **`firestore.rules` ya NO tiene fecha de expiración** (se quitó el 2026-11-07 tras 68 días de app caída). **Nunca volver a poner una fecha de expiración sin crear además un recordatorio de calendario** — este CODEX no alcanzó para detectarlo. Ver [Incidente de reglas vencidas](#incidente-reglas-2026-11-07)
+23. **`firestore.rules` ya NO tiene fecha de expiración** (se quitó el 2026-11-07 tras 68 días de app caída). **Nunca volver a poner una fecha de expiración sin crear además un recordatorio de calendario** — este CODEX no alcanzó para detectarlo. Ver [Incidente de reglas vencidas](ESTFRUTA_HISTORIAL.md#incidente-reglas-2026-11-07)
 24. **Los documentos de `estimaciones` tienen los campos duplicados en mayúscula y minúscula.** Las reglas validan los de **mayúscula** (`Cosecha`, `Tipo`, `Lote`, `Parcela`) y eso es correcto: el encabezado se crea con mayúsculas. **No cambiar las reglas a minúscula** — rompería la creación de encabezados. Ver [doble grafía](#doble-grafia-campos)
-25. **Al cambiar `firestore.rules`, el archivo del repo no hace nada por sí solo.** Firestore solo obedece lo publicado en el servidor: publicar en la consola de Firebase o `firebase deploy --only firestore:rules` desde `C:\proyectos\estfruta` (`.firebaserc` ya apunta al proyecto `estfruta`). Después, verificar con una lectura real contra la API, no asumir. Y antes de un `firebase deploy`, leer el archivo de vuelta desde el disco para confirmar que contiene lo que creés — una escritura puede reportar éxito sin aplicarse (ver [Copia única del proyecto](#copia-unica))
+25. **Al cambiar `firestore.rules`, el archivo del repo no hace nada por sí solo.** Firestore solo obedece lo publicado en el servidor: publicar en la consola de Firebase o `firebase deploy --only firestore:rules` desde `C:\proyectos\estfruta` (`.firebaserc` ya apunta al proyecto `estfruta`). Después, verificar con una lectura real contra la API, no asumir. Y antes de un `firebase deploy`, leer el archivo de vuelta desde el disco para confirmar que contiene lo que creés — una escritura puede reportar éxito sin aplicarse (ver [Copia única del proyecto](ESTFRUTA_HISTORIAL.md#copia-unica))
 26. **Dos motores de cálculo independientes:** `estimationBusinessRules.js` (conteo de frutas, al guardar) y `estfrutaAnalysisService.js` (proyección de cajas/ha, al consultar). No son redundantes pero tampoco están sincronizados
 27. **El flujo de Patrón A (análisis por sección/GF/parcela) recalcula desde `detalle` crudo**; el Patrón B (consulta y datos guardados) lee campos ya guardados sin recalcular. Ambos coexisten
 28. **El motor de proyección de cajas está unificado en `proyectarCajas()`** (`estfrutaAnalysisService.js`), S11. `totalCajas` (round-final) es el único KPI válido para "Cajas Exp" y el color de Cajas/Ha; `cajasRedondeadasPorTamano` es solo cosmético para la tabla T5–T12. Si se agrega una pantalla nueva que necesite esta proyección, **llamar a `proyectarCajas()`, no reimplementar la fórmula**
 29. **El total de cajas/ha de un lote nunca es igual a sumar las filas de parcela** — es intencional, no un bug. No "corregirlo" para que la suma cuadre; la UI ya tiene `.agl-resumen-nota` aclarándolo
-30. **Hay una sola copia local del proyecto: `C:\proyectos\estfruta`** (con git), y este CODEX vive dentro de ella. La copia de OneDrive se abandonó el 2026-11-07 — ver [Copia única del proyecto](#copia-unica). Tras editar este documento o el plan, volver a subirlo al project knowledge de Claude
+31. **La verificación de un muestreo es exclusiva del Supervisor Estimacion.** Solo `handleAprobar` en `EstimationSamplingEditPage.js` puede escribir `verificado: true`, y siempre junto con `aprobadoPor` y `aprobadoEn`. **Nunca escribir `verificado` desde otro lugar** — ni al navegar, ni al guardar, ni en un efecto. Ya pasó una vez: ver [Verificación y anulación](ESTFRUTA_HISTORIAL.md#bugs-verificacion-2026-11-07)
+32. **Los registros no se eliminan, se anulan.** `firestore.rules` bloquea `delete` siempre. Para descartar un registro se escribe `anulado: true` con `anuladoPor` y `anuladoEn`. **Toda pantalla o query nueva que lea `estimaciones` debe excluir los anulados** (`anulado !== true`), incluidos los chequeos de duplicados — si no, un registro anulado sigue sumando en las proyecciones de cajas/ha o bloquea rehacer el muestreo. Ver [Borrado lógico](ESTFRUTA_HISTORIAL.md#borrado-logico)
+33. **`estfruta.web.app` sirve la carpeta `build/`, no `src/`.** Editar el código fuente no cambia nada en el sitio publicado. Para que un cambio llegue al celular: `npm run build` y después `firebase deploy --only hosting`. Luego recargar fuerte en el dispositivo, porque el service worker de la PWA puede seguir sirviendo el bundle anterior. Es el mismo tipo de error que la regla 25 describe para `firestore.rules`
+34. **Antes de concluir que algo está roto, buscá en todo `src/`, no en un archivo suelto.** El 2026-11-07 se documentó un bloqueante inexistente ("no se pueden crear estimaciones") por leer `estimationService.js` en aislamiento: `addDoc` se importaba sin usarse ahí, pero la creación real estaba en `EstimationHeaderPage.js`. Un `grep -rn` sobre `src/` lo habría evitado
+35. **Hay una sola copia local del proyecto: `C:\proyectos\estfruta`** (con git), y este CODEX vive dentro de ella. La copia de OneDrive se abandonó el 2026-11-07 — ver [Copia única del proyecto](ESTFRUTA_HISTORIAL.md#copia-unica). Tras editar este documento o el plan, volver a subirlo al project knowledge de Claude

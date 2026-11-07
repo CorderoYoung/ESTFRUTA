@@ -27,7 +27,10 @@ function PantallaConsultaEstFruta({ user, onLogout }) {
     const querySnapshot = await getDocs(
       collection(db, 'estimaciones')
     );
-    const datos = querySnapshot.docs.map((doc) => {
+    // 2026-11-07: excluir registros anulados (borrado logico).
+    const datos = querySnapshot.docs
+      .filter((doc) => doc.data()?.anulado !== true)
+      .map((doc) => {
 
   const data = doc.data();
 

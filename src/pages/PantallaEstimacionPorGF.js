@@ -252,7 +252,10 @@ export default function PantallaEstimacionPorGF({ user, onLogout }) {
 
     try {
       const snap = await getDocs(collection(db, 'estimaciones'));
-      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // 2026-11-07: excluir anulados para que no entren en las proyecciones.
+      const docs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((d) => d.anulado !== true);
 
       setRegistros(docs);
     } catch (err) {

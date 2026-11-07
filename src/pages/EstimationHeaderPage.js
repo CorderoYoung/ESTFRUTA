@@ -215,8 +215,11 @@ const setField = (fieldName, value) => {
           where('Cosecha', '==', header.Cosecha)
         )
       );
-      const hasDuplicate = dupSnap.docs.some((doc) =>
-        sameEstimationWithoutGF(headerWithGF, doc.data())
+      // 2026-11-07: un registro anulado no debe bloquear la creacion de uno nuevo.
+      const hasDuplicate = dupSnap.docs.some(
+        (doc) =>
+          doc.data()?.anulado !== true &&
+          sameEstimationWithoutGF(headerWithGF, doc.data())
       );
       if (hasDuplicate) {
         alert('Ya existe una estimación para esta Cosecha, Tipo, Lote, Parcela y Año.');

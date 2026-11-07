@@ -44,7 +44,7 @@ Esto simplifica cada fase: ya no hay que replicar nada. Pero agrega una verifica
 | # | Tarea | Archivo | Estado |
 |---|---|---|---|
 | 0.1 | Verificar el supuesto mismatch de mayúsculas entre el payload y las reglas | `firestore.rules` / `estimationService.js` | ✅ **CERRADA — no había mismatch.** Ver abajo |
-| 0.2 | Restaurar la creación de estimaciones en `requestCreateEstimation` | `estimationService.js` | ⏳ **Abierta, y más grande de lo que este plan suponía.** Ver abajo |
+| 0.2 | Quitar el `throw` de depuración de `requestCreateEstimation` | `estimationService.js` | ✅ **CERRADA — no bloqueaba nada.** Ver abajo |
 
 ### 0.1 — Cerrada: el mismatch no existía
 
@@ -56,13 +56,17 @@ El CODEX advertía que `estimationService.js` guarda los campos en minúscula mi
 
 > ⚠️ **No "corregir" las reglas pasándolas a minúscula.** Eso sí rompería la creación de encabezados. Las reglas de la Fase 6 deben seguir usando mayúsculas, salvo que antes se haga un backfill que unifique la doble grafía.
 
-### 0.2 — Abierta: no hay ningún `addDoc` operativo
+### 0.2 — Cerrada: el `throw` es código muerto inalcanzable
 
-Este plan decía "quitar el `throw new Error(...)` de depuración". El problema es mayor: **`addDoc` se importa en la línea 1 de `estimationService.js` pero no se llama en ninguna parte del archivo.** Las únicas escrituras reales son dos `updateDoc`. En la rama header-only de `requestCreateEstimation` quedó el `throw` de depuración justo donde debería ir el `addDoc`; la otra rama hace `updateDoc` sobre `draft.estimationId`, que depende de que el encabezado ya exista.
+Una versión anterior de este plan afirmaba que crear estimaciones no funcionaba. **Es falso.** `requestCreateEstimation` tiene efectivamente un `throw` de depuración donde iría un `addDoc`, pero **esa función no se llama desde ningún lado** — el compilador lo confirma: *'requestCreateEstimation' is defined but never used*.
 
-O sea: **crear estimaciones nuevas no funciona hoy**, y no alcanza con borrar el `throw`. Antes de tocarlo hay que mapear el flujo completo de creación — incluido el camino offline (`syncRegistro()` en `PantallaDatosGuardadosCelular`) — para entender cómo se crearon los documentos que sí están en Firestore y de dónde sale `draft.estimationId`.
+La creación real vive en **`EstimationHeaderPage.js` → `guardarFirebase()`**, con su propio `addDoc`. Eso además explica por qué los documentos de Firestore tienen los campos en mayúscula: los escribe esa página.
 
-**Salida de la Fase 0:** poder crear y guardar una estimación nueva de punta a punta, verificado contra Firestore.
+Comprobado en producción el 2026-11-07 creando estimaciones reales desde el celular, online y offline con sincronización posterior.
+
+Queda como limpieza opcional borrar `requestCreateEstimation` y el import de `addDoc` en `estimationService.js`, porque hacen creer que ahí se crean las estimaciones.
+
+**Salida de la Fase 0:** ya alcanzada — se crean y guardan estimaciones de punta a punta.
 
 ---
 
@@ -172,8 +176,9 @@ allow delete: if false;
 
 ## Fase 7 — Inyectar `empresaId` al guardar
 
-1. `estimationService.js`: en cada escritura hacia `estimaciones`, tomar `empresaId` de la sesión e incluirlo en el payload. En `checkFirebaseDuplicate`, agregar `where('empresaId','==', empresaId)`. **Depende de la Fase 0.2:** mientras no exista un `addDoc` operativo, no hay creación donde inyectar nada.
-2. `operationalDraftStorage.js`: `crearUniqueKey()` debe llevar `empresaId` como primer segmento (`EMPRESA-COSECHA-TIPO-GF-LOTE-PARCELA-AÑO`).
+1. ⚠️ **`EstimationHeaderPage.js` es el archivo clave**, no `estimationService.js`: ahí está el `addDoc` que crea las estimaciones (`guardarFirebase()`). Hay que inyectar `empresaId` en ese payload, en el chequeo de duplicados y en el registro que se guarda localmente en modo offline. Si se sigue solo lo que decía este plan antes, los documentos nuevos saldrían sin `empresaId` y las reglas de la Fase 6 los rechazarían.
+2. `estimationService.js`: inyectar `empresaId` en sus `updateDoc` y agregar `where('empresaId','==', empresaId)` en `checkFirebaseDuplicate`.
+3. `operationalDraftStorage.js`: `crearUniqueKey()` debe llevar `empresaId` como primer segmento (`EMPRESA-COSECHA-TIPO-GF-LOTE-PARCELA-AÑO`).
 
 > ⚠️ En la base ya conviven **dos formatos de `uniqueKey`**: documentos viejos con 4 segmentos (`"C1-11-40-2026"`) y el formato actual de 6. Al agregar `empresaId` serían tres. Contemplarlo en la validación de duplicados, y definir qué hacer con los borradores locales pendientes de sincronizar al momento del despliegue.
 
@@ -191,6 +196,8 @@ allow delete: if false;
 | `PantallaAnalisisGF_Lote.js` | igual que arriba | igual |
 | `PantallaEstimacionPorSeccion.jsx` | `getDoc` por `id` directo | Verificar `data.empresaId === user.empresaId` post-fetch; si no coincide, "no encontrado" |
 | `PantallaAnalisisParcelaDetalle.jsx` | `getDoc` por `id` directo | mismo patrón |
+
+> ⚠️ Estas mismas queries ya filtran los registros **anulados** (`anulado !== true`, borrado lógico agregado el 2026-11-07). Al agregar el filtro por empresa, conservar el de anulados: son dos condiciones, no una.
 
 **Salida:** ningún dispositivo recibe documentos de una empresa que no es la suya.
 
@@ -257,17 +264,17 @@ allow delete: if false;
 | Fase | Descripción | Estado / dependencia |
 |---|---|---|
 | 0.1 | Verificar mismatch de mayúsculas | ✅ Cerrada — no existía |
-| 0.2 | Restaurar la creación de estimaciones (`addDoc`) | ⏳ **Abierta y bloqueante** — sin esto no se pueden crear estimaciones, con o sin multiempresa |
+| 0.2 | `throw` de depuración en `requestCreateEstimation` | ✅ Cerrada — código muerto, no bloquea nada |
 | 1 | Colección `empresas` | Pendiente |
 | 2 | Backfill `empresaId` en datos existentes | Pendiente — prerequisito de Fase 6 |
 | 3 | Firebase Auth + Custom Claims + Cloud Functions + bootstrap Administrador | Pendiente — prerequisito de Fases 4-6 |
 | 4 | Login nuevo en la app | Pendiente — prerequisito de Fase 6 |
 | 5 | Pantalla de administración de usuarios (Sprint S6) | Pendiente — necesaria para dar de alta a los otros 6 Cargos |
 | 6 | `firestore.rules` nuevas | Pendiente — **cierra la exposición permanente** de `estimaciones` |
-| 7 | Inyectar `empresaId` al guardar | Pendiente — depende de 0.2 |
+| 7 | Inyectar `empresaId` al guardar | Pendiente — el `addDoc` está en `EstimationHeaderPage.js` |
 | 8 | Filtrar las consultas de las 6 pantallas | Pendiente — cierra la fuga de datos |
 | 9 | Offline por empresa | Pendiente — puede ir después |
 | 10 | Pruebas | Antes de cerrar el rollout |
 | 11 | Orden de despliegue | — |
 
-Nada de este plan se ha ejecutado todavía. El arranque natural es la **tarea 0.2**: hoy la app no puede crear estimaciones nuevas, y eso bloquea cualquier prueba de las fases siguientes.
+Nada de este plan se ha ejecutado todavía. La Fase 0 está cerrada, así que el arranque natural es la **Fase 1** (colección `empresas`), seguida del backfill. Lo que justifica llegar hasta la Fase 6 es la exposición permanente descrita arriba, no una fecha límite.

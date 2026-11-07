@@ -56,7 +56,9 @@ function PantallaDatosGuardadosCelular() {
         const dupSnap = await getDocs(
           query(collection(db, 'estimaciones'), where('uniqueKey', '==', uniqueKey))
         );
-        if (!dupSnap.empty) {
+        // 2026-11-07: un registro anulado no debe bloquear la sincronizacion.
+        const dupVivos = dupSnap.docs.filter((d) => d.data()?.anulado !== true);
+        if (dupVivos.length > 0) {
           alert('Ya existe una estimación para esta Cosecha, Tipo, GF, Lote, Parcela y Año.');
           setDuplicadosDetectados((prev) => ({ ...prev, [item.id]: true }));
           return;

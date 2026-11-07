@@ -36,7 +36,8 @@ export default function PantallaEstimacionPorSeccion({ user, onLogout }) {
         const docRef = doc(db, 'estimaciones', id);
         const docSnap = await getDoc(docRef);
 
-        if (!docSnap.exists()) {
+        // 2026-11-07: un registro anulado se trata como no encontrado.
+        if (!docSnap.exists() || docSnap.data()?.anulado === true) {
           setError('Estimación no encontrada');
           return;
         }

@@ -183,7 +183,8 @@ export default function PantallaAnalisisParcelaDetalle() {
       try {
         const snap = await getDoc(doc(db, 'estimaciones', id));
 
-        if (!snap.exists()) {
+        // 2026-11-07: un registro anulado se trata como no encontrado.
+        if (!snap.exists() || snap.data()?.anulado === true) {
           setError('Estimación no encontrada.');
         } else {
           setData({ id: snap.id, ...snap.data() });
