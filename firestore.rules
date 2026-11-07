@@ -1,0 +1,52 @@
+rules_version = '2';
+
+// ══════════════════════════════════════════════════════════════════
+// REGLAS TEMPORALES DE PRUEBA — EstFruta
+// Proyecto: estfruta (Firebase project ID)
+// Sin fecha de expiración desde 2026-11-07. La anterior venció el 31-ago-2026 y dejó la app sin acceso a Firestore.
+//
+// ADVERTENCIA: Estas reglas son para pruebas internas solamente.
+// NO son aptas para producción.
+//
+// Limitación conocida: EstFruta usa localStorage para autenticación,
+// no Firebase Authentication. Por lo tanto request.auth siempre es
+// null y no es posible validar roles en estas reglas.
+//
+// Fase 2 (producción): migrar login a Firebase Authentication con
+// Custom Claims para validar roles (Muestreador, Supervisor, etc.)
+// en las reglas de Firestore.
+// ══════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Bloquear todo por defecto ──────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ── Colección: estimaciones ────────────────────────────────────
+    match /estimaciones/{docId} {
+
+      allow read: if true;
+
+      allow create: if true
+        && request.resource.data.keys().hasAll([
+             'Cosecha', 'Tipo', 'Lote', 'Parcela'
+           ])
+        && request.resource.data.Cosecha is string
+        && request.resource.data.Tipo is string
+        && request.resource.data.Lote != null
+        && request.resource.data.Parcela != null;
+
+      allow update: if true
+        && request.resource.data.keys().hasAll([
+             'Cosecha', 'Tipo', 'Lote', 'Parcela'
+           ]);
+
+      // ELIMINAR: BLOQUEADO en pruebas.
+      allow delete: if false;
+    }
+
+  }
+}
