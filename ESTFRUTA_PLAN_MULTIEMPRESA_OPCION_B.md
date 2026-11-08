@@ -39,6 +39,95 @@ Esto simplifica cada fase: ya no hay que replicar nada. Pero agrega una verifica
 
 ---
 
+<a id="fincas"></a>
+## Requisito nuevo — fincas dentro de una empresa (2026-11-08)
+
+Freddy lo detectó revisando la app: falta un nivel entre la empresa y el lote.
+
+El caso real: **Contoso tiene tres fincas grandes, separadas por kilómetros.** Cada finca tiene **su propio personal** — sus Muestreadores, su Supervisor Estimación y su Supervisor Cosecha. Lo que comparten las tres es la **planta de empaque**, y por eso Contoso necesita las dos vistas: el desglose de cada finca y **el consolidado de las tres**.
+
+La planta de empaque **no se modela como entidad** (decisión de Freddy, 2026-11-08). Es la consumidora del consolidado, no un dato de la app. Si algún día una finca despachara a otra planta, ahí habrá que revisarlo.
+
+### Finca no es lo mismo que empresa
+
+| | `empresaId` | `fincaId` |
+|---|---|---|
+| Para qué sirve | **Aislar** | **Agrupar** |
+| ¿Se puede cruzar? | Nunca: Contoso no ve datos de otra empresa | Sí, y es el requisito: el consolidado cruza las tres |
+| Quién lo hace cumplir | Las reglas de Firestore (Fase 6) | La UI y las queries |
+
+> ⚠️ **No modelar las fincas como empresas separadas.** Es el error natural y rompe el requisito: el aislamiento haría imposible el consolidado que la planta necesita.
+
+### Modelo de datos
+
+```
+empresas/{empresaId}/
+  nombre, activa
+
+fincas/{fincaId}/
+  empresaId          // una finca pertenece a una sola empresa
+  nombre
+  activa
+
+estimaciones/{id}/
+  empresaId          // Fase 1
+  fincaId            // NUEVO — se guarda en el documento, no se infiere del usuario
+
+usuarios/{uid}/
+  empresaId
+  fincaId            // null = alcance empresa (ve todas las fincas)
+  rol
+```
+
+**`fincaId` va escrito en el documento, no deducido de quién lo capturó.** Si solo viajara en la sesión, la finca de un registro sería una inferencia: el día que alguien quede mal asignado, los registros de esa jornada se clasifican mal y **no hay forma de detectarlo mirando los datos**. Es el mismo patrón del bug de `frutasTotales` del 2026-11-08 — un dato derivado en vez de guardado.
+
+El valor **se pre-carga desde el usuario** en la pantalla de Encabezado, para que el muestreador no lo escriba, pero queda visible y editable, y se guarda.
+
+Las fincas van en **catálogo, no en texto libre**: escrito a mano aparecen "La Esperanza" y "la esperanza" y el consolidado se parte en dos.
+
+### Dos alcances de visibilidad dentro de la misma empresa
+
+| Rol | Alcance | Ve |
+|---|---|---|
+| Muestreador | Su finca | Solo su finca |
+| Supervisor Estimación | Su finca | Solo su finca |
+| Supervisor Cosecha | Su finca | Solo su finca |
+| Administrador, Gerente General, Gerente Producción, Logística | Empresa | Todas las fincas, con desglose y consolidado |
+
+Se resuelve con `usuarios.fincaId`: lleno para los roles de finca, vacío para los que consolidan. La query filtra por finca **solo cuando el usuario tiene una asignada**; siempre filtra por empresa.
+
+### Cambia la Regla 31 del CODEX
+
+Hoy dice que solo el Supervisor Estimación verifica un muestreo. Con varias fincas eso ya no alcanza: tiene que ser el Supervisor Estimación **de esa finca**. Si no, el de la Finca A puede aprobar muestreos de la Finca B — el mismo tipo de agujero que se corrigió el 2026-11-07.
+
+`handleAprobar` en `EstimationSamplingEditPage.js` debe validar, además del rol, que `user.fincaId === documento.fincaId`.
+
+### Dónde aterriza en las fases que ya existen
+
+No es una fase nueva: es un campo que atraviesa casi todas.
+
+| Fase | Qué se le suma |
+|---|---|
+| 1 — Modelo de datos | Crear también la colección `fincas` con las tres de Contoso |
+| 2 — Backfill | Los documentos existentes tampoco tienen `fincaId`. Hay que decidir a qué finca pertenecen **antes** de correr el script — no es automático como `empresaId`, que es uno solo |
+| 3 — Custom Claims | El claim lleva `fincaId` además de `empresaId` y `rol` |
+| 4 — Login | La sesión conserva `fincaId` |
+| 5 — Admin de usuarios | Alta de usuarios con finca asignada, y alta de fincas |
+| 6 — Rules | Las reglas siguen validando **solo empresa**. La finca agrupa, no aísla: meterla en las reglas impediría el consolidado |
+| 7 — Inyectar al guardar | `fincaId` en el payload de `EstimationHeaderPage.js`, y **en la `uniqueKey`**: dos fincas pueden tener cada una su "Lote 11, Parcela 40" y hoy se bloquearían como duplicado falso |
+| 8 — Filtrar consultas | Selector de Finca junto a GF / Lote / Sección, con opción **"Todas"** — ese "Todas" es literalmente el consolidado |
+| 10 — Pruebas | Caso nuevo: supervisor de Finca A no puede aprobar un muestreo de Finca B |
+
+### Consecuencia sobre las prioridades
+
+Tres fincas por tres roles son nueve usuarios por empresa, más los de consolidación. Hoy los usuarios son un array escrito a mano en `authService.js`, con `Clave: '123'` para todos. **Eso no se administra.** Dicho de otra forma: el requisito de fincas **adelanta las Fases 3 y 5** — ya no es solo el argumento de seguridad, es que sin usuarios en base de datos no hay forma de asignar fincas.
+
+### Una grafía sola
+
+`fincaId` se escribe **en una sola grafía**, minúscula, y nada más. Los documentos actuales ya arrastran el problema de tener cada campo duplicado en mayúscula y minúscula; no agregar un caso nuevo.
+
+---
+
 ## Fase 0 — Arreglos previos (no depende de decidir nada de multiempresa)
 
 | # | Tarea | Archivo | Estado |
@@ -276,5 +365,7 @@ allow delete: if false;
 | 9 | Offline por empresa | Pendiente — puede ir después |
 | 10 | Pruebas | Antes de cerrar el rollout |
 | 11 | Orden de despliegue | — |
+
+> 📌 **El requisito de fincas (2026-11-08) atraviesa las Fases 1, 2, 3, 4, 5, 7, 8 y 10.** No es una fase aparte y no conviene hacerlo en una segunda tanda: son los mismos archivos, las mismas queries y la misma clave de duplicados. Ver [Requisito nuevo — fincas](#fincas).
 
 Nada de este plan se ha ejecutado todavía. La Fase 0 está cerrada, así que el arranque natural es la **Fase 1** (colección `empresas`), seguida del backfill. Lo que justifica llegar hasta la Fase 6 es la exposición permanente descrita arriba, no una fecha límite.
