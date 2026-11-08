@@ -311,11 +311,46 @@ Agravante de orden: `...header` arrastra el `frutasTotales` viejo leído del doc
 - Antes de escribir se corrió en seco: los 20 daban exactamente `PtasMues` y ninguna fila del `detalle` quedaba sin clasificar.
 - Verificado después: 21 de 21 con `frutasTotales` igual a la suma del `detalle` y `frutasEmpacables + frutasNoEmpacables = frutasTotales`. Las aprobaciones quedaron intactas (20 con firma, 0 verificados sin firma).
 
-De ahí la regla 36: si una escritura toca `detalle`, tiene que escribir también los agregados.
+De ahí la regla 35: si una escritura toca `detalle`, tiene que escribir también los agregados.
 
 #### Dato suelto para revisar en campo
 
 El documento `0gDbNEG9zzG83YSCo7G0` (GF 5-20, Lote 11, Parcela 40) tiene un desglose implausible: de 448 frutas, **420 son `DEFECTO:Quebr`** y solo 8 son tamaños empacables. No es un problema del backfill — el `detalle` siempre fue así y es lo mismo que la app muestra en vivo. Parece un registro de práctica, de alguien dejando el botón presionado. Queda a criterio de Freddy si se anula.
+
+---
+
+<a id="crash-build-2026-11-08"></a>
+## El build se queda sin memoria y vacia `build/` (2026-11-08)
+
+Al compilar para desplegar el arreglo de `frutasTotales`, `npm run build` crasheo con un volcado nativo de Node:
+
+```
+DataCloneError: Data cannot be cloned, out of memory.
+    at reportSuccess (...\node_modules\jest-worker\build\workers\threadChild.js:70:32)
+Node.js v24.15.0
+```
+
+`react-scripts` 5 minifica en paralelo con `jest-worker`. Cada worker termina y le pasa el resultado al hilo principal; con los source maps activados ese objeto es enorme y no entra en el heap. No tiene relacion con el codigo del proyecto.
+
+### El riesgo real no fue el crash, fue lo que dejo atras
+
+`react-scripts` **limpia `build/` antes de compilar**. Tras el crash, la carpeta quedo con 6 archivos sueltos —`favicon.ico`, `manifest.json`, `robots.txt` y poco mas— **sin `index.html` y sin `static/js`**. El `firebase deploy --only hosting` ya estaba escrito en la terminal.
+
+De haberse ejecutado, habria publicado una carpeta sin aplicacion encima del despliegue bueno, y la app habria quedado muerta en el celular de todos. El sitio se salvo solo porque Firebase conserva el despliegue anterior hasta que subis uno nuevo. De ahi la regla 38.
+
+`build/` esta en `.gitignore`, asi que no habia copia en git de donde restaurarlo: la unica salida era compilar bien.
+
+### Arreglo
+
+- `package.json`: el script `build` pasó a `node --max-old-space-size=4096 node_modules/react-scripts/scripts/build.js`. El heap **no se puede fijar desde `.env`** — cuando CRA lee ese archivo, Node ya arrancó.
+- `.env`: `GENERATE_SOURCEMAP=false`. Los source maps solo sirven para depurar en el navegador.
+- `.env.example`: copia versionada, porque `.gitignore` ignora `.env`.
+
+Con las dos cosas el build paso limpio (un solo warning, el `addDoc` sin usar), se desplegó, y se verifico contra el sitio en vivo que `estfruta.web.app` sirve el bundle recien compilado y que el arreglo esta dentro de el.
+
+### Hallazgo colateral
+
+Buscando donde poner el `.env` aparecio que **`.gitignore` tiene marcadores de conflicto de merge commiteados**. Esta anotado en los bugs pendientes del CODEX.
 
 ---
 
