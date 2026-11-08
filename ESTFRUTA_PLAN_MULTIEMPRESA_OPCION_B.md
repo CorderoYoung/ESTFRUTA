@@ -109,7 +109,7 @@ No es una fase nueva: es un campo que atraviesa casi todas.
 | Fase | Qué se le suma |
 |---|---|
 | 1 — Modelo de datos | Crear también la colección `fincas` con las tres de Contoso |
-| 2 — Backfill | Los documentos existentes tampoco tienen `fincaId`. Hay que decidir a qué finca pertenecen **antes** de correr el script — no es automático como `empresaId`, que es uno solo |
+| 2 — Backfill | ✅ **Decidido (2026-11-08):** los documentos que hay hoy son **datos de prueba**, así que el backfill les asigna la **primera finca** y no hay que mapear nada a mano |
 | 3 — Custom Claims | El claim lleva `fincaId` además de `empresaId` y `rol` |
 | 4 — Login | La sesión conserva `fincaId` |
 | 5 — Admin de usuarios | Alta de usuarios con finca asignada, y alta de fincas |
@@ -181,10 +181,11 @@ Todos los documentos de `estimaciones` hoy NO tienen `empresaId`. Antes de exigi
 1. Script único (Node + Admin SDK, o manual si son pocos documentos) que recorra `estimaciones` y agregue `empresaId: '<la empresa actual>'` a cada documento que no lo tenga.
 2. Verificar con una query: contar documentos totales vs. documentos con `empresaId` — deben coincidir al terminar.
 3. Aditivo únicamente — no tocar ningún otro campo.
+4. Agregar en la misma pasada `fincaId` con **la primera finca**: los documentos actuales son datos de prueba, así que no hace falta decidir caso por caso (decisión de Freddy, 2026-11-08). Ver [Requisito nuevo — fincas](#fincas).
 
 > Oportunidad: este es el momento natural para decidir si se aprovecha el mismo script para limpiar la **doble grafía de campos** (quedarse con un solo juego, mayúscula o minúscula). No está decidido. Si se hace, las reglas de la Fase 6 deben ajustarse en el mismo despliegue.
 
-**Salida:** el 100% de los documentos existentes tiene `empresaId`.
+**Salida:** el 100% de los documentos existentes tiene `empresaId` y `fincaId`.
 
 ---
 
