@@ -263,9 +263,9 @@ Antes de tocar nada se verificó si el dato de fondo estaba bien: en los 21 vige
 Quedan a la espera de que el Supervisor Estimacion los apruebe con el botón ✓ — los 21 pasan la validación, así que es un toque por registro.
 
 <a id="frutastotales-desactualizado"></a>
-### Hallazgo colateral: `frutasTotales` guardado está desactualizado
+### Hallazgo colateral: `frutasTotales` guardado estaba desactualizado ✅ RESUELTO 2026-11-08
 
-En la misma auditoría apareció otro problema, **no relacionado con los tres bugs de arriba**: en **20 de los 21 documentos vigentes**, el campo agregado `frutasTotales` que está guardado en Firestore no coincide con la suma real del `detalle`.
+En la misma auditoría apareció otro problema, **no relacionado con los tres bugs de arriba**: en **20 de los 21 documentos vigentes**, el campo agregado `frutasTotales` guardado en Firestore no coincidía con la suma real del `detalle`.
 
 | Parcela | `PtasMues` | `frutasTotales` guardado | Suma real del `detalle` |
 |---|---|---|---|
@@ -274,11 +274,48 @@ En la misma auditoría apareció otro problema, **no relacionado con los tres bu
 | GF 11-12, Lote 21, Parcela 11 | 2660 | **0** | 2660 |
 | GF 11-12, Lote 2, Parcela 58 | 3087 | **2** | 3087 |
 
-Las pantallas de análisis (Patrón A) recalculan desde `detalle`, así que **las proyecciones de cajas/ha no están afectadas**. Pero `PantallaConsultaEstFruta` y `PantallaDatosGuardadosCelular` (Patrón B) leen los campos guardados tal cual, así que ahí ese número se muestra mal.
+#### ❌ Corrección: el impacto que afirmaba este documento era falso
 
-Es exactamente la fragilidad que el CODEX ya advertía: los dos motores de cálculo (`estimationBusinessRules.js` al guardar, `estfrutaAnalysisService.js` al consultar) no están sincronizados.
+La primera versión de esta sección decía que `PantallaConsultaEstFruta` y `PantallaDatosGuardadosCelular` leen esos campos y muestran el número mal. **Era falso y se escribió sin verificar** — el mismo error que la regla 34 describe, repetido al día siguiente de haberla escrito.
 
-**Sin diagnosticar todavía.** Hay que averiguar en qué momento se escribe ese valor y por qué queda con el conteo de las primeras pulsaciones en vez del total final — probablemente se guarda el agregado antes de que el `detalle` esté completo. No se tocó ningún dato: corregirlo requiere entender primero el flujo de escritura.
+Un `grep -rni "frutastotales"` sobre todo `src/`, con las dos grafías, muestra que **ninguna pantalla lee el campo guardado**. Las dos que muestran "Total de Muestras" (`EstimationSamplingEditPage` y `EstimationSamplingPageTF`) usan los agregados que `useEstimacionDetalle` calcula en vivo desde `detalle`. La única aparición en `PantallaConsultaEstFruta` es un comentario (línea 455) que dice que ese estado se eliminó.
+
+El campo estaba mal pero no se veía en ninguna pantalla. Importaba igual: queda como trampa para lo que lo lea después — un reporte, una exportación, o la API de servidor que el propio `estimationBusinessRules.js` anticipa en su comentario de cabecera ("el servidor debe recalcular totales desde detalle y no confiar en totales del cliente").
+
+#### Causa: `handleSave` escribía el detalle pero no los agregados
+
+`EstimationSamplingEditPage.js` -> `handleSave` armaba así el payload:
+
+```js
+const payload = {
+  ...header,
+  detalle,                    // <- el detalle sí se actualizaba
+  actualizadoEn: new Date(),
+  GF: ...
+};
+await updateDoc(doc(db, 'estimaciones', id), finalPayload);
+```
+
+Sin `frutasEmpacables`, `frutasNoEmpacables` ni `frutasTotales`. Esos campos se quedaban con el valor de la escritura inicial del documento, cuando el muestreo llevaba apenas unas pocas pulsaciones — de ahí los 0, 2, 3 y 8.
+
+Dos líneas antes, la misma función valida `safeFrutasTotales === ptasMuesNum` y no deja guardar si no cuadran: al momento de escribir sabía que eran 876 y no los guardaba.
+
+Agravante de orden: `...header` arrastra el `frutasTotales` viejo leído del documento, así que los campos nuevos **tienen que ir después del spread** para pisarlo.
+
+**Prueba.** `actualizadoEn` lo escribe únicamente `handleSave`. De los 21 vigentes, los 20 que tenían ese campo estaban desfasados y el único que cuadraba era el único que no lo tenía. Correlación perfecta, sin excepciones.
+
+#### Arreglo y backfill — 2026-11-08
+
+- `EstimationSamplingEditPage.js` línea 141: se agregaron los tres agregados al payload de `handleSave`, después del spread de `header`.
+- Backfill de los 20 documentos vía PATCH con `updateMask`, recalculando con la misma lógica de `aggregateFrutasFromDetalle` (suma por clave `tipoLinea:codigo`, `Math.max(0, trunc)`, TAMANO 5-12 a empacables y DEFECTO a no empacables). Se marcó cada uno con `agregadosRecalculadosEn`.
+- Antes de escribir se corrió en seco: los 20 daban exactamente `PtasMues` y ninguna fila del `detalle` quedaba sin clasificar.
+- Verificado después: 21 de 21 con `frutasTotales` igual a la suma del `detalle` y `frutasEmpacables + frutasNoEmpacables = frutasTotales`. Las aprobaciones quedaron intactas (20 con firma, 0 verificados sin firma).
+
+De ahí la regla 36: si una escritura toca `detalle`, tiene que escribir también los agregados.
+
+#### Dato suelto para revisar en campo
+
+El documento `0gDbNEG9zzG83YSCo7G0` (GF 5-20, Lote 11, Parcela 40) tiene un desglose implausible: de 448 frutas, **420 son `DEFECTO:Quebr`** y solo 8 son tamaños empacables. No es un problema del backfill — el `detalle` siempre fue así y es lo mismo que la app muestra en vivo. Parece un registro de práctica, de alguien dejando el botón presionado. Queda a criterio de Freddy si se anula.
 
 ---
 
@@ -305,6 +342,7 @@ Es exactamente la fragilidad que el CODEX ya advertía: los dos motores de cálc
 | "Cajas Exp" y color de "Cajas/Ha" cambiaban entre lista de parcelas y detalle de parcela para el mismo registro | 5 implementaciones distintas de la fórmula de proyección de cajas, cada una con su propio criterio de redondeo | 2026-07-28 (S11): unificadas en `proyectarCajas()`, `totalCajas` (round-final) como único KPI. Ver [Auditoría de Motores de Cálculo](#auditoria-motores-calculo) |
 | Tabla T5–T12 y "Cajas Empacables" podían no sumar igual en `PantallaEstimacionPorGF.js` | `cajasExport` (redondeo al final) y `totalCajasTabla` (suma de tamaños ya redondeados) se calculaban con criterios distintos dentro de `calcularGF()` | 2026-07-28 (S11): `cajasExport`/`cajasHa` ahora vienen siempre de `proyeccion.totalCajas`; `totalCajasTabla` quedó como dato solo informativo |
 | "Cajas Exp/Ha" del encabezado del lote no coincide con sumar las filas de parcela (Lote 21: 6141 vs. 6148) | `calcularAgrupado()` agrega muestras crudas y proyecta una vez; cada fila usa su propio % de empaque — no son sumables entre sí | No es un bug de cálculo. 2026-07-28 (S12): se mantuvo el comportamiento y se agregó nota visual `.agl-resumen-nota` aclarándolo |
+| `frutasTotales` guardado no coincidía con el `detalle` en 20 de 21 documentos | `handleSave` en `EstimationSamplingEditPage.js` escribía `detalle` y `actualizadoEn` pero no los tres campos agregados, que se quedaban con el valor de la creación inicial | 2026-11-08 (S17): agregados añadidos al payload, después del spread de `header`, más backfill de los 20 con `updateMask`. Ver [frutasTotales desactualizado](#frutastotales-desactualizado) |
 | **App completamente caída: Firestore rechazaba toda lectura y escritura desde el 1-set-2026** | Las reglas publicadas tenían `request.time < timestamp.date(2026, 9, 1)` en `allow read`, `allow create` y `allow update`. La fecha venció y nadie lo detectó durante 68 días | 2026-11-07 (S13): las tres condiciones reemplazadas por `true` y publicadas en la consola. Verificado con lectura real contra la API REST (HTTP 200). Ver [Incidente de reglas vencidas](#incidente-reglas-2026-11-07) |
 
 ---

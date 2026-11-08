@@ -385,6 +385,7 @@ PantallaConsultaEstFruta
   aprobadoPor,        // ← String — quién aprobó (solo lo escribe handleAprobar)
   aprobadoEn,         // ← Date — cuándo se aprobó
   verificacionReseteadaEn, // ← Date — marca de la limpieza del 2026-11-07, solo auditoría
+  agregadosRecalculadosEn, // ← Date — marca del backfill del 2026-11-08, solo auditoría
   anulado: true,      // ← Boolean — borrado lógico (S15). Si falta, el registro está vigente
   anuladoPor,         // ← String — quién anuló
   anuladoEn,          // ← Date — cuándo se anuló
@@ -838,7 +839,8 @@ allow delete: if false;
 | S13 | Quitar fecha de expiración de `firestore.rules` y reactivar Firestore | ✅ Implementado y publicado 2026-11-07. Verificado con lectura real contra la API (HTTP 200). Ver [Incidente de reglas vencidas](ESTFRUTA_HISTORIAL.md#incidente-reglas-2026-11-07) |
 | S14 | Corregir la verificación de muestreos (botón Volver + botón Aprobar) | ✅ Implementado y probado en producción 2026-11-07. Ver [Verificación y anulación](ESTFRUTA_HISTORIAL.md#bugs-verificacion-2026-11-07) |
 | S15 | Cambiar Eliminar por anulación (borrado lógico) en las 7 pantallas afectadas | ✅ Implementado y probado en producción 2026-11-07. Ver [Borrado lógico](ESTFRUTA_HISTORIAL.md#borrado-logico) |
-| S16 | Devolver a pendiente los registros falsamente verificados | ✅ Hecho 2026-11-07: 21 documentos pasados a `verificado: false` con marca `verificacionReseteadaEn`. Esperan aprobación real del supervisor |
+| S16 | Devolver a pendiente los registros falsamente verificados | ✅ Hecho 2026-11-07. Cerrado el 2026-11-08: 20 de 21 aprobados por el Supervisor Estimacion con firma y fecha, 0 verificados sin firma |
+| S17 | Que `handleSave` guarde los agregados, y backfill de los 20 documentos desfasados | ✅ Implementado 2026-11-08. Ver [frutasTotales desactualizado](ESTFRUTA_HISTORIAL.md#frutastotales-desactualizado) |
 
 ---
 
@@ -848,7 +850,6 @@ allow delete: if false;
 | Bug | Archivo | Causa raíz | Impacto |
 |---|---|---|---|
 | Código muerto en `estimationService.js` con un `throw` de depuración adentro | `estimationService.js` | `requestCreateEstimation` tiene un `throw new Error(...)` de depuración donde iría un `addDoc`, y `addDoc` se importa sin usarse. **La función no se llama desde ningún lado** (el compilador lo confirma: *'requestCreateEstimation' is defined but never used*), así que el `throw` es inalcanzable | Ninguno funcional, pero es una trampa: hace creer que ahí se crean las estimaciones. Conviene borrar la función. La creación real está en `EstimationHeaderPage.js` → `guardarFirebase()` |
-| **`frutasTotales` guardado no coincide con el `detalle`** | `estimationService.js` / datos en Firestore | En 20 de 21 documentos vigentes el agregado guardado vale 0, 2 o 3 mientras la suma real del `detalle` es 448, 2660, 3087… Probablemente se escribe el agregado antes de que el `detalle` esté completo | Las pantallas de análisis recalculan desde `detalle` y no se ven afectadas, pero `PantallaConsultaEstFruta` y `PantallaDatosGuardadosCelular` leen el campo guardado y muestran el número equivocado. Sin diagnosticar — ver [frutasTotales desactualizado](ESTFRUTA_HISTORIAL.md#frutastotales-desactualizado) |
 | Doble grafía de campos en los documentos (`Cosecha` y `cosecha` conviviendo), con algunos pares cruzados de tipo | Documentos en Firestore | El encabezado se crea con mayúsculas y `updateDoc` agrega después las minúsculas; al fusionar quedan los dos juegos | No rompe nada hoy porque la normalización con `??` lo absorbe, pero duplica almacenamiento y es una trampa para código nuevo. Backfill de limpieza pendiente, no decidido. Ver [doble grafía](#doble-grafia-campos) |
 | Exposición permanente de `estimaciones` (lectura y escritura sin autenticación) | `firestore.rules` + `authService.js` | No hay Firebase Auth, así que `request.auth` es `null` y las reglas solo validan forma | Antes la fecha de expiración actuaba como cierre forzado; ahora no hay ninguno. Se cierra con la Fase 6 del plan multiempresa |
 
@@ -896,4 +897,5 @@ allow delete: if false;
 32. **Los registros no se eliminan, se anulan.** `firestore.rules` bloquea `delete` siempre. Para descartar un registro se escribe `anulado: true` con `anuladoPor` y `anuladoEn`. **Toda pantalla o query nueva que lea `estimaciones` debe excluir los anulados** (`anulado !== true`), incluidos los chequeos de duplicados — si no, un registro anulado sigue sumando en las proyecciones de cajas/ha o bloquea rehacer el muestreo. Ver [Borrado lógico](ESTFRUTA_HISTORIAL.md#borrado-logico)
 33. **`estfruta.web.app` sirve la carpeta `build/`, no `src/`.** Editar el código fuente no cambia nada en el sitio publicado. Para que un cambio llegue al celular: `npm run build` y después `firebase deploy --only hosting`. Luego recargar fuerte en el dispositivo, porque el service worker de la PWA puede seguir sirviendo el bundle anterior. Es el mismo tipo de error que la regla 25 describe para `firestore.rules`
 34. **Antes de concluir que algo está roto, buscá en todo `src/`, no en un archivo suelto.** El 2026-11-07 se documentó un bloqueante inexistente ("no se pueden crear estimaciones") por leer `estimationService.js` en aislamiento: `addDoc` se importaba sin usarse ahí, pero la creación real estaba en `EstimationHeaderPage.js`. Un `grep -rn` sobre `src/` lo habría evitado
-35. **Hay una sola copia local del proyecto: `C:\proyectos\estfruta`** (con git), y este CODEX vive dentro de ella. La copia de OneDrive se abandonó el 2026-11-07 — ver [Copia única del proyecto](ESTFRUTA_HISTORIAL.md#copia-unica). Tras editar este documento o el plan, volver a subirlo al project knowledge de Claude
+36. **Si una escritura a `estimaciones` toca el `detalle`, tiene que escribir también `frutasEmpacables`, `frutasNoEmpacables` y `frutasTotales`.** Son campos derivados: si se actualiza uno sin el otro quedan contradiciéndose en silencio, porque ninguna pantalla los lee y nadie se entera. Y si el payload hace spread de `header`, los agregados van **después**, porque `header` arrastra el valor viejo del documento. Ya pasó: ver [frutasTotales desactualizado](ESTFRUTA_HISTORIAL.md#frutastotales-desactualizado)
+37. **Hay una sola copia local del proyecto: `C:\proyectos\estfruta`** (con git), y este CODEX vive dentro de ella. La copia de OneDrive se abandonó el 2026-11-07 — ver [Copia única del proyecto](ESTFRUTA_HISTORIAL.md#copia-unica). Tras editar este documento o el plan, volver a subirlo al project knowledge de Claude

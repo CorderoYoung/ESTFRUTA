@@ -141,6 +141,14 @@ function EstimationSamplingEditPage({ user }) {
       const payload = {
         ...header,
         detalle,
+        // 2026-11-08: el payload llevaba el detalle pero NO los agregados, asi que
+        // frutasTotales se quedaba con el valor viejo del documento (los 0/2/3/8 de
+        // la creacion inicial) mientras el detalle ya tenia el muestreo completo.
+        // Van DESPUES del spread de header a proposito: header arrastra el valor
+        // desactualizado leido del documento y hay que pisarlo.
+        frutasEmpacables: safeFrutasEmpacables,
+        frutasNoEmpacables: safeFrutasNoEmpacables,
+        frutasTotales: safeFrutasTotales,
         actualizadoEn: new Date(),
         GF:
           header?.GF ||
