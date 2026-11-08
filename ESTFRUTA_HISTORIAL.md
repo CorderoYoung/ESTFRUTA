@@ -354,6 +354,49 @@ Buscando donde poner el `.env` aparecio que **`.gitignore` tiene marcadores de c
 
 ---
 
+<a id="vercel-eliminado-2026-11-08"></a>
+## Habia un proyecto de Vercel construyendo el repo — eliminado (2026-11-08)
+
+Al terminar el trabajo del dia llego un correo de Vercel avisando que un despliegue de produccion habia fallado. Nadie sabia que eso existia: ni el CODEX ni las instrucciones del proyecto mencionaban Vercel, solo Firebase Hosting.
+
+Habia un proyecto `estfruta` en `CorderoYoung's projects` conectado al repositorio de GitHub, que intentaba compilar en cada push a `main` y publicaba en dominios `estfruta-git-main-cordero-young-s-projects.vercel.app`. Nadie usaba esas direcciones.
+
+### Por que fallaba
+
+Vercel pone `CI=true` en sus builds, y con esa variable Create React App **convierte los warnings en errores**:
+
+```
+Tratar las advertencias como errores porque process.env.CI = true.
+La mayoria de los servidores de CI lo configuran automaticamente.
+Error al compilar.
+```
+
+Lo que lo tumbaba eran puros `no-unused-vars` viejos, repartidos por todo `src/`:
+
+| Archivo | Variable sin usar |
+|---|---|
+| `domain/estimationHeaderRules.js` | `deriveGf` |
+| `pages/EstimationHeaderPage.js` | `requestCreateEstimation`, `draftHasSamplingProgress` |
+| `pages/EstimationSamplingEditPage.js` | `headerGf`, `canSave`, `handleCrearRegistro`, `handleVolverCabecera`, `handleLimpiarConteos` |
+| `pages/EstimationSamplingPageTF.js` | varias mas |
+| `services/estimationService.js` | `addDoc` |
+
+Son las mismas variables que el build local reporta como warnings y sigue de largo. **Con `CI=true` ese repo nunca pudo haber compilado en Vercel**, asi que no era una rotura nueva: el build fallaba en 39 segundos, en el linter, sin llegar siquiera a minificar. La maquina de Vercel tenia 2 nucleos y 8 GB, de modo que no tuvo nada que ver con el problema de memoria del mismo dia.
+
+### Decision: eliminarlo
+
+Se borro el proyecto de Vercel. Verificado: la URL del proyecto responde 404.
+
+Razones: nadie usaba esos dominios, la app de campo sale de Firebase Hosting, y dos hostings sirviendo la misma aplicacion es una fuente garantizada de confusion — alguien abre el `.vercel.app`, ve una version vieja o rota, y reporta bugs que no existen. El repositorio en GitHub y Firebase no se tocaron.
+
+### Lo que queda anotado
+
+**No hay despliegue automatico.** Publicar sigue siendo manual: `npm run build` y despues `firebase deploy --only hosting`, con la verificacion de la regla 38. Si algun dia se quiere automatizar, el camino correcto es GitHub Actions publicando en Firebase Hosting, no un segundo proveedor.
+
+**El codigo muerto sigue pendiente de borrar.** Ya estaba anotado en los bugs pendientes del CODEX; este incidente es la segunda vez en dos dias que cuesta tiempo. Ojo al limpiarlo: si algun dia se agrega CI, esos warnings vuelven a ser errores.
+
+---
+
 ## Bugs resueltos
 
 | Bug | Causa raíz | Solución |
