@@ -119,7 +119,7 @@ No es una fase nueva: es un campo que atraviesa casi todas.
 | Fase | Qué se le suma |
 |---|---|
 | 1 — Modelo de datos | ✅ **Hecho el 2026-11-14** — colección `fincas` creada con las tres: `cabo-zarzo`, `augrofresh`, `ananasinc` |
-| 2 — Backfill | ✅ **Decidido:** los documentos que hay hoy son **datos de prueba**, así que el backfill les asigna todos a **Ananasinc** (`ananasinc`) y no hay que mapear nada a mano (2026-11-08; finca elegida el 2026-11-14) |
+| 2 — Backfill | ✅ **Hecho el 2026-11-14** — los 26 documentos quedaron con `fincaId: "ananasinc"`. Eran datos de prueba, así que no hubo que mapear nada a mano (decisión del 2026-11-08; finca elegida el 2026-11-14) |
 | 3 — Custom Claims | El claim lleva `fincaId` además de `empresaId` y `rol` |
 | 4 — Login | La sesión conserva `fincaId` |
 | 5 — Admin de usuarios | Alta de usuarios con finca asignada, y alta de fincas |
@@ -222,6 +222,24 @@ Todos los documentos de `estimaciones` hoy NO tienen `empresaId`. Antes de exigi
 > Oportunidad: este es el momento natural para decidir si se aprovecha el mismo script para limpiar la **doble grafía de campos** (quedarse con un solo juego, mayúscula o minúscula). No está decidido. Si se hace, las reglas de la Fase 6 deben ajustarse en el mismo despliegue.
 
 **Salida:** el 100% de los documentos existentes tiene `empresaId` y `fincaId`.
+
+### ✅ Ejecutada el 2026-11-14
+
+Hecho por REST (`PATCH` con `updateMask.fieldPaths=empresaId&updateMask.fieldPaths=fincaId`), que sí se puede porque `estimaciones` está abierta — al revés que la Fase 1.
+
+| | |
+|---|---|
+| Documentos tocados | **26 de 26** (21 vigentes + 5 anulados) |
+| Ya tenían `empresaId` o `fincaId` antes | 0, en cualquiera de las dos grafías |
+| Escritos con `empresaId: "frutera-varfa"` | 26 |
+| Escritos con `fincaId: "ananasinc"` | 26 |
+| Fallidos | 0 |
+
+**Los anulados también llevan los dos campos, a propósito.** Cuando entren las reglas de la Fase 6, un documento sin `empresaId` queda ilegible de forma permanente; dejarlos fuera habría convertido el borrado lógico en un borrado real por la puerta de atrás.
+
+Verificación posterior, sobre los 26: nada más se movió. 5 anulados, 20 vigentes con firma real de supervisor, 0 descuadres entre `frutasTotales` y `PtasMues`, y `frutasEmpacables + frutasNoEmpacables = frutasTotales` en todos. Sigue pendiente de aprobar un solo registro, `O17Df4CnDVmP2aUzNWnM` (GF 11-12) — es el mismo de antes del backfill, no lo cambió esto.
+
+La doble grafía de campos **no se tocó**: `empresaId` y `fincaId` se escribieron en una sola grafía, minúscula. Esa limpieza, si se hace, es un trabajo aparte.
 
 ---
 
@@ -392,7 +410,7 @@ allow delete: if false;
 | 0.1 | Verificar mismatch de mayúsculas | ✅ Cerrada — no existía |
 | 0.2 | `throw` de depuración en `requestCreateEstimation` | ✅ Cerrada — código muerto, no bloquea nada |
 | 1 | Colecciones `empresas` y `fincas` | ✅ **Cerrada el 2026-11-14** — 1 empresa + 3 fincas creadas en la consola de Firebase |
-| 2 | Backfill `empresaId` en datos existentes | Pendiente — prerequisito de Fase 6 |
+| 2 | Backfill `empresaId` + `fincaId` en datos existentes | ✅ **Cerrada el 2026-11-14** — 26/26 documentos |
 | 3 | Firebase Auth + Custom Claims + Cloud Functions + bootstrap Administrador | Pendiente — prerequisito de Fases 4-6 |
 | 4 | Login nuevo en la app | Pendiente — prerequisito de Fase 6 |
 | 5 | Pantalla de administración de usuarios (Sprint S6) | Pendiente — necesaria para dar de alta a los otros 6 Cargos |
@@ -405,4 +423,4 @@ allow delete: if false;
 
 > 📌 **El requisito de fincas (2026-11-08) atraviesa las Fases 1, 2, 3, 4, 5, 7, 8 y 10.** No es una fase aparte y no conviene hacerlo en una segunda tanda: son los mismos archivos, las mismas queries y la misma clave de duplicados. Ver [Requisito nuevo — fincas](#fincas).
 
-Las Fases 0 y 1 están cerradas (la 1 el 2026-11-14: `empresas` y `fincas` ya existen en Firestore). El siguiente paso es la **Fase 2**, el backfill de `empresaId` + `fincaId` sobre los documentos de `estimaciones` que ya existen. Lo que justifica llegar hasta la Fase 6 es la exposición permanente descrita arriba, no una fecha límite.
+Las Fases 0, 1 y 2 están cerradas (las dos últimas el 2026-11-14: `empresas` y `fincas` existen, y los 26 documentos de `estimaciones` ya llevan `empresaId` y `fincaId`). Hasta aquí el impacto en la app es cero. El siguiente paso es la **Fase 3** — Firebase Auth, custom claims y las dos Cloud Functions — que es donde empieza el trabajo de verdad y el prerequisito de todo lo que falta. Lo que justifica llegar hasta la Fase 6 es la exposición permanente descrita arriba, no una fecha límite.

@@ -398,7 +398,7 @@ Razones: nadie usaba esos dominios, la app de campo sale de Firebase Hosting, y 
 ---
 
 <a id="fase1-multiempresa-2026-11-14"></a>
-## Fase 1 del plan multiempresa ejecutada — `empresas` y `fincas` (2026-11-14) ✅
+## Fase 1 del plan multiempresa — `empresas` y `fincas` (2026-11-14) ✅
 
 Primera fase del [plan multiempresa](ESTFRUTA_PLAN_MULTIEMPRESA_OPCION_B.md) que realmente se ejecuta. Hasta hoy el plan estaba escrito completo pero sin una sola línea aplicada.
 
@@ -425,11 +425,48 @@ Detalle de la consola que cuesta un minuto si no se sabe: al agregar un campo bo
 
 Nada en `src/` lee `empresas` ni `fincas` todavía. Las colecciones están ahí esperando a las fases siguientes. No hay forma de que esto rompa nada en producción, que es justamente por qué la Fase 1 se diseñó así.
 
+---
+
+<a id="fase2-backfill-2026-11-14"></a>
+## Fase 2 del plan multiempresa — backfill de `empresaId` y `fincaId` (2026-11-14) ✅
+
+Al revés que la Fase 1, este sí se pudo hacer por REST, porque `estimaciones` está abierta a escritura sin autenticar. `PATCH` con `updateMask.fieldPaths=empresaId&updateMask.fieldPaths=fincaId`, que es lo que garantiza que no se toque ningún otro campo.
+
+| | |
+|---|---|
+| Documentos tocados | **26 de 26** (21 vigentes + 5 anulados) |
+| Ya tenían alguno de los dos campos | 0, en cualquiera de las dos grafías |
+| `empresaId: "frutera-varfa"` | 26 |
+| `fincaId: "ananasinc"` | 26 |
+| Fallidos | 0 |
+
+Antes de escribir se corrió en seco: ninguno de los 26 traía `empresaId`/`fincaId` ni en minúscula ni en mayúscula, así que no había nada que pisar.
+
+**Por qué los anulados también lo llevan.** Es deliberado: cuando entren las reglas de la Fase 6, un documento sin `empresaId` queda ilegible para siempre. Dejar los anulados fuera habría convertido el borrado lógico en un borrado real por la puerta de atrás, que es justo lo que el `allow delete: if false` existe para impedir.
+
+**Por qué todos a Ananasinc.** Los documentos de hoy son datos de prueba — Freddy lo declaró así el 2026-11-08 y eligió la finca el 2026-11-14. No había nada que mapear caso por caso. Cuando entren datos reales de campo, la finca la va a escribir la app (Fase 7), no un backfill.
+
+### Verificación posterior
+
+Sobre los 26 documentos, después de escribir:
+
+- 26/26 con `empresaId: "frutera-varfa"` y 26/26 con `fincaId: "ananasinc"`.
+- 5 anulados — igual que antes.
+- 20 vigentes con firma real de supervisor (`aprobadoPor`) — igual que antes.
+- 0 descuadres entre `frutasTotales` y `PtasMues`, y `frutasEmpacables + frutasNoEmpacables = frutasTotales` en todos: el arreglo del 2026-11-08 quedó intacto.
+- Sigue pendiente de aprobar un único registro, `O17Df4CnDVmP2aUzNWnM` (GF 11-12). Es el mismo de antes; el backfill no lo tocó.
+
+La **doble grafía de campos no se tocó**. `empresaId` y `fincaId` se escribieron en una sola grafía, minúscula, y nada más. Unificar el resto sigue siendo un trabajo aparte, sin decidir.
+
+### Un tropiezo de ejecución que conviene recordar
+
+El primer intento escribió los 26 en serie desde la consola del navegador y **el puente de automatización cortó a los 45 segundos**, con 14 documentos ya escritos. No se perdió nada ni quedó a medias ningún documento: cada `PATCH` es atómico y escribe los dos campos juntos, así que el estado intermedio eran 14 completos y 12 sin tocar. Se listaron los 12 faltantes y se terminaron en paralelo.
+
+La lección no es sobre Firestore sino sobre el método: **una pasada de escritura por el navegador tiene que poder reanudarse**. Que la operación sea idempotente (escribir el mismo valor dos veces da lo mismo) y que se pueda preguntar a la base quién falta es lo que convirtió un timeout en un trámite.
+
 ### Lo que sigue
 
-**Fase 2 — backfill.** Agregar `empresaId: "frutera-varfa"` y `fincaId: "ananasinc"` a los documentos de `estimaciones` que ya existen. Decisión de Freddy: los documentos actuales son datos de prueba, así que van todos a Ananasinc sin mapeo caso por caso (los datos de prueba se declararon como tales el 2026-11-08; la finca se eligió el 2026-11-14). Aditivo únicamente — no tocar ningún otro campo, y los anulados también llevan los dos campos.
-
-Este backfill sí se puede hacer por REST, porque `estimaciones` está abierta.
+**Fase 3 — Firebase Auth + custom claims + las dos Cloud Functions.** Hasta aquí el impacto en la app ha sido literalmente cero: se agregaron colecciones que nadie lee y dos campos que nadie consulta. La Fase 3 es donde empieza el trabajo real, y es prerequisito de todo lo que falta (4, 5 y 6).
 
 ---
 
