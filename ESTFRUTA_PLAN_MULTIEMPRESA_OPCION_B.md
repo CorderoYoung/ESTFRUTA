@@ -39,7 +39,7 @@ Lo que sí implica: las Fases 3 a 6 tienen que estar **probadas**, no solo escri
 
 3. **¿Pantalla de administración de usuarios ahora o después?** ✅ **Respondido: ahora.** Se agregó como **Fase 5** de este plan (implementa el Sprint S6, que en el CODEX estaba como "Futuro").
 
-**Estado: las tres cerradas. El plan no tiene decisiones abiertas — la Fase 3 puede arrancar.** Lo único pendiente que no depende de nosotros son los correos del personal, y hacen falta recién en la Fase 5.
+**Estado: las tres cerradas. El plan no tiene decisiones abiertas.** Lo único pendiente que no depende de nosotros son los correos del personal, y hacen falta recién en la Fase 5.
 
 ---
 
@@ -283,11 +283,13 @@ Qué se paga a cambio — los tres, con nombre y apellido:
 
 > Reescrita el 2026-11-14. **Ya no hay Cloud Functions** — ver la decisión de arriba.
 
-1. **Habilitar el proveedor Email/Password** en Firebase Authentication. Hoy Authentication no está inicializado en absoluto: la consola muestra la pantalla de bienvenida con el botón "Comenzar". Email/Password es gratis en Spark; lo que exige Blaze es la autenticación por teléfono, que aquí no se usa.
+1. ✅ **Hecho el 2026-11-14 — Email/Password habilitado.** Authentication no estaba inicializado; se inicializó y se activó el proveedor **Correo electrónico/contraseña**, que la consola ya reporta como *Habilitada*. El **Vínculo del correo electrónico (acceso sin contraseña) quedó apagado a propósito**: es una segunda puerta de entrada que nadie pidió. La consola recomienda además habilitar "Acceder con Google" — **no se hizo**: los muestreadores no tienen por qué tener cuenta de Google, y sería otro proveedor que mantener. Email/Password es gratis en Spark; lo que exige Blaze es la autenticación por teléfono, que aquí no se usa.
 
-2. **Arreglar `src/firebaseConfig.js`.** Hoy solo exporta `db`; falta `export const auth = getAuth(app)`. Y ojo con el bloque de configuración: el `appId` que tiene es un marcador de posición (`...web:a1b2c3d4e5f6g7h8i9j0k1`). La `apiKey` sí es real y Firestore funciona igual, pero antes de habilitar Auth hay que bajar la configuración real desde la consola (Configuración del proyecto → Tus apps) y reemplazar el objeto completo.
+2. ✅ **Hecho el 2026-11-14 — `src/firebaseConfig.js` corregido.** Resultó peor de lo previsto: no era solo el `appId`, eran **tres campos inventados** (`storageBucket`, `messagingSenderId` y `appId`), copiados de una plantilla. La `apiKey`, el `authDomain` y el `projectId` sí eran correctos, que es la razón por la que Firestore siempre funcionó. Se corrigieron contra la consola, se agregó el `measurementId` que faltaba y se agregó `export const auth = getAuth(app)`. Ver [el detalle en el historial](ESTFRUTA_HISTORIAL.md#config-firebase-inventada-2026-11-14).
 
-3. **Crear la colección `usuarios`**, espejo de las cuentas de Auth. Hace falta sí o sí porque el cliente no puede listar cuentas de Firebase Auth, y en esta ruta es además **la fuente de verdad del rol**:
+   **No se compiló ni se desplegó.** El cambio es inerte —nadie usa `auth` todavía— y el build va junto con la Fase 4, con la verificación de la regla 38. Dato suelto que salió de ahí: `src/Untitled-1.js` es una copia byte por byte del config viejo, no la importa nadie, y queda pendiente de borrar con el resto del código muerto.
+
+3. ✅ **Hecho el 2026-11-14 — colección `usuarios` creada.** Espejo de las cuentas de Auth. Hace falta sí o sí porque el cliente no puede listar cuentas de Firebase Auth, y en esta ruta es además **la fuente de verdad del rol**:
    ```
    usuarios/
      <uid>/                 // uid = el mismo ID de la cuenta de Firebase Auth
@@ -308,7 +310,29 @@ Qué se paga a cambio — los tres, con nombre y apellido:
    - inicial del nombre + apellido; si choca, se numera: `jperez`, `jperez2`;
    - es **estable**: si alguien se casa o cambia de apellido, el `usuario` no se toca. El `nombre` visible sí.
 
-4. **Bootstrap del primer Administrador, a mano y una sola vez.** En la consola: Authentication → Users → Agregar usuario (correo + clave), copiar el `uid` que queda, y crear a mano `usuarios/{uid}` con `rol: "Administrador"`, `empresaId: "frutera-varfa"`, `fincaId: null`, `activo: true`. Hasta que exista ese Administrador nadie puede usar la pantalla de la Fase 5 para crear a los demás.
+4. **Bootstrap del primer Administrador, a mano y una sola vez.** En la consola: Authentication → Users → Agregar usuario (correo + clave), copiar el `uid` que queda, y crear a mano `usuarios/{uid}` con `usuario`, `nombre`, `correo`, `rol: "Administrador"`, `empresaId: "frutera-varfa"`, `fincaId: null`, `activo: true`. Hasta que exista ese Administrador nadie puede usar la pantalla de la Fase 5 para crear a los demás.
+
+   > 🔑 **La clave la escribe Freddy, no se delega.** Conviene que salga de un gestor de contraseñas y no se reutilice: esta cuenta es la que puede crear y cambiar a todas las demás.
+
+### ✅ Fase 3 cerrada el 2026-11-14
+
+El Administrador quedó creado: Freddy creó la cuenta de Auth con su clave y el documento espejo se escribió a mano en la consola.
+
+| | |
+|---|---|
+| Ruta | `usuarios/qE7Sb1JZtWgqlmjRmHy8GOpYqwG3` |
+| `usuario` | `fcordero` |
+| `nombre` | `Freddy Cordero` |
+| `correo` | `fcorderoyt@gmail.com` |
+| `rol` | `Administrador` |
+| `empresaId` | `frutera-varfa` |
+| `fincaId` | `null` (alcance empresa: ve las tres fincas) |
+| `activo` | `true` (booleano real) |
+| `creadoEn` | 14-nov-2026 10:30 UTC-6 (timestamp real) |
+
+> ⚠️ **Esta cuenta es la excepción documentada a la regla del login por nombre.** Su `correo` es un Gmail, no `fcordero@fruteravarfa.com`, así que `usuario + dominio` **no** da su correo: Freddy entra escribiendo el correo completo. Eso ya lo contempla la rama `usuario.includes('@')` de la Fase 4, y no hay que "arreglarlo". Cuando Frutera Varfa cree los buzones, conviene migrar esta cuenta a un correo de la empresa.
+
+**Dónde quedó la Fase 3:** las cuatro tareas hechas. Nada de esto cambió el comportamiento de la app — sigue entrando con el selector de Cargo y la clave `123`, porque el login nuevo es la Fase 4.
 
 **Salida:** autenticación habilitada, `usuarios` creada y un Administrador real que puede loguearse. Los demás Cargos todavía no tienen cuenta.
 
@@ -546,7 +570,7 @@ Tres cosas que hacen el trabajo pesado aquí:
 | 0.2 | `throw` de depuración en `requestCreateEstimation` | ✅ Cerrada — código muerto, no bloquea nada |
 | 1 | Colecciones `empresas` y `fincas` | ✅ **Cerrada el 2026-11-14** — 1 empresa + 3 fincas creadas en la consola de Firebase |
 | 2 | Backfill `empresaId` + `fincaId` en datos existentes | ✅ **Cerrada el 2026-11-14** — 26/26 documentos |
-| 3 | Firebase Auth + colección `usuarios` + bootstrap Administrador | **Siguiente** — prerequisito de Fases 4-6 |
+| 3 | Firebase Auth + colección `usuarios` + bootstrap Administrador | ✅ **Cerrada el 2026-11-14** — Auth habilitado, config corregida, `usuarios` creada y Administrador listo |
 | 4 | Login nuevo en la app | Pendiente — prerequisito de Fase 6 |
 | 5 | Pantalla de administración de usuarios (Sprint S6) | Pendiente — necesaria para dar de alta a los otros 6 Cargos |
 | 6 | `firestore.rules` nuevas | Pendiente — **cierra la exposición permanente** de `estimaciones` |
@@ -558,4 +582,4 @@ Tres cosas que hacen el trabajo pesado aquí:
 
 > 📌 **El requisito de fincas (2026-11-08) atraviesa las Fases 1, 2, 3, 4, 5, 7, 8 y 10.** No es una fase aparte y no conviene hacerlo en una segunda tanda: son los mismos archivos, las mismas queries y la misma clave de duplicados. Ver [Requisito nuevo — fincas](#fincas).
 
-Las Fases 0, 1 y 2 están cerradas (las dos últimas el 2026-11-14: `empresas` y `fincas` existen, y los 26 documentos de `estimaciones` ya llevan `empresaId` y `fincaId`). Hasta aquí el impacto en la app es cero. El siguiente paso es la **Fase 3** — habilitar Firebase Auth, arreglar `firebaseConfig.js`, crear `usuarios` y el Administrador inicial — que es donde empieza el trabajo de verdad y el prerequisito de todo lo que falta. La fecha a la que apunta todo esto es [mediados de enero de 2027](#fecha-objetivo) — una meta de calendario, no una bomba de tiempo como la de agosto. Lo que hace que la Fase 6 sea obligatoria y no opcional sigue siendo la exposición permanente descrita arriba.
+Las Fases 0, 1, 2 y 3 están cerradas; las tres últimas el 2026-11-14. **Hasta aquí el impacto en la app sigue siendo cero:** colecciones que nadie lee, dos campos que nadie consulta y un `export const auth` que nadie usa. El siguiente paso es la **Fase 4** — reescribir el login contra Firebase Auth. Es el primer cambio de esta migración que los usuarios van a ver, y el que hay que probar en el celular antes de desplegar. La fecha a la que apunta todo esto es [mediados de enero de 2027](#fecha-objetivo) — una meta de calendario, no una bomba de tiempo como la de agosto. Lo que hace que la Fase 6 sea obligatoria y no opcional sigue siendo la exposición permanente descrita arriba.

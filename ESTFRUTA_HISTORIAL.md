@@ -508,13 +508,51 @@ El día que EstFruta necesite algo que corra en servidor sin un humano con el na
 
 ### Otros dos hallazgos del mismo repaso del código
 
-**`src/firebaseConfig.js` no exporta `auth`**, solo `db`. Y el `appId` del bloque de configuración es un marcador de posición (`...web:a1b2c3d4e5f6g7h8i9j0k1`). La `apiKey` sí es real y Firestore funciona igual, pero antes de habilitar Auth hay que bajar la configuración real desde la consola y reemplazar el objeto completo.
+**`src/firebaseConfig.js` no exporta `auth`**, solo `db`, y su bloque de configuración trae valores que no son del proyecto. Resultó peor de lo que parecía en este primer vistazo — ver [Tres valores de `firebaseConfig.js` estaban inventados](#config-firebase-inventada-2026-11-14), más abajo.
 
 **`ProtectedRoute` va a reintroducir un bug ya resuelto si no se diseña con cuidado.** Hoy lee la sesión de `localStorage` de forma síncrona; `onAuthStateChanged` es asíncrono y en el primer render devuelve `null`. Sin un estado explícito de "cargando", manda a `/login` a un usuario que sí tiene sesión — que es literalmente el bug *"`currentUser` llegaba `null` a `ProtectedRoute`"* de la tabla de abajo. Tres estados, no dos.
 
 ### Fecha objetivo
 
 En la misma conversación quedó fijada la primera fecha real del proyecto desde que venció la de agosto: **entrar en producción con Frutera Varfa a mediados de enero de 2027**, sujeto al desembolso. A diferencia de aquella, esta es una meta de calendario y no una bomba de tiempo dentro de las reglas: si se corre, no se rompe nada.
+
+---
+
+<a id="config-firebase-inventada-2026-11-14"></a>
+## Tres valores de `firebaseConfig.js` estaban inventados (2026-11-14) ✅ CORREGIDO
+
+Al arrancar la Fase 3 se comparó `src/firebaseConfig.js` contra la consola de Firebase. Tres de los siete valores no correspondían al proyecto:
+
+| Campo | Lo que decía el archivo | Lo que dice la consola |
+|---|---|---|
+| `storageBucket` | `estfruta.appspot.com` | `estfruta.firebasestorage.app` |
+| `messagingSenderId` | `1058802421234` | `629680311053` |
+| `appId` | `1:1058802421234:web:a1b2c3d4e5f6g7h8i9j0k1` | `1:629680311053:web:095a9817159b5b5e8afe44` |
+
+El `appId` viejo se delata solo: `a1b2c3d4e5f6g7h8i9j0k1` es el relleno de una plantilla, no un identificador. Y el `messagingSenderId` de una app de Firebase **es** el número del proyecto, que en este caso es 629680311053 — el que estaba escrito no era de nadie.
+
+La `apiKey`, el `authDomain` y el `projectId` sí eran correctos. **Por eso nunca se notó:** Firestore solo necesita esos tres. Los otros tres alimentan Cloud Messaging, Storage y Analytics, y nada en `src/` usa ninguno de los tres.
+
+### Por qué importaba igual
+
+Habilitar Firebase Auth con una configuración a medias es la clase de error que no da un mensaje claro: falla en el navegador del muestreador, en el campo, con un error genérico. Costaba cinco minutos comprobarlo ahora y podía costar una mañana en enero.
+
+De paso apareció el origen: **`src/Untitled-1.js` es una copia byte por byte de `firebaseConfig.js`**, con los mismos valores inventados, y no la importa nadie. Alguien pegó una plantilla, la duplicó, y la copia que quedó en uso heredó el relleno. Queda anotado junto al resto del código muerto pendiente de borrar.
+
+### Qué se hizo
+
+- Los tres valores corregidos contra la consola, más `measurementId: "G-S6VLL9884X"` que faltaba.
+- Agregado `export const auth = getAuth(app)`, que es lo único que el código necesitaba para la Fase 3.
+- Un comentario de cabecera en el archivo dejando dicho cuáles estaban mal y de dónde se copian los correctos: **de la consola, nunca de memoria ni de una plantilla**.
+- Verificado que el archivo parsea sin errores. **No se compiló ni se desplegó**: el cambio es inerte (nadie usa `auth` todavía) y el build va junto con la Fase 4, con la verificación de la regla 38.
+
+### Cierre de la Fase 3 el mismo día
+
+Con eso quedaron las cuatro tareas: Email/Password habilitado (y el acceso sin contraseña **apagado** a propósito), config corregida, colección `usuarios` creada y el Administrador bootstrapeado en `usuarios/qE7Sb1JZtWgqlmjRmHy8GOpYqwG3` — `rol: "Administrador"`, `empresaId: "frutera-varfa"`, `fincaId: null`, `activo: true`. La clave la escribió Freddy; no pasó por aquí.
+
+**Un tropiezo que conviene no repetir.** Al llenar el campo `creadoEn` (tipo timestamp), la fecha se escribió primero en el formato equivocado y el selector de calendario quedó abierto encima del formulario interpretando el año como 103000. Al intentar cerrarlo haciendo clic en el backdrop del overlay, **se cerró el diálogo entero y se perdieron los ocho campos sin guardar nada**. No hubo daño —no se escribió nada a medias— pero costó rehacerlo.
+
+Lo que funciona en la consola de Firestore para un campo timestamp: el campo Fecha espera el formato **`14 nov 2026`** (día, mes abreviado en español, año), y la Hora es un campo nativo de tipo time que acepta `103000`. **No abrir el ícono del calendario**: queda pegado encima del formulario y tapa el botón Guardar. Y nunca cerrar un overlay haciendo clic en su backdrop si hay un formulario sin guardar detrás.
 
 ---
 
