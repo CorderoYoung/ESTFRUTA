@@ -23,7 +23,7 @@ Ver Fase 0 abajo.
 
 ## Antes de empezar: respuestas de Freddy
 
-1. **¿Cuántas empresas hay hoy y cómo se llaman?** ✅ **Respondido: cero.** Hoy no existe ninguna empresa creada en el sistema — la app funciona como si todo fuera una sola empresa implícita. La primera empresa a crear en la Fase 1 será un **placeholder**: nombre `Contoso S.A.`, `empresaId: 'contoso'` — Freddy indicó explícitamente que **se renombrará más adelante** cuando se defina el nombre real. No bloquea el resto del plan: renombrar una empresa después es solo actualizar `empresas/{empresaId}.nombre` (o, si cambia también el `empresaId`, un backfill puntual como el de la Fase 2 pero solo para ese campo).
+1. **¿Cuántas empresas hay hoy y cómo se llaman?** ✅ **Respondido: cero.** Hoy no existe ninguna empresa creada en el sistema — la app funciona como si todo fuera una sola empresa implícita. **Actualizado el 2026-11-14:** la empresa se llama **Frutera Varfa**, `empresaId: 'frutera-varfa'`. Ya no hay placeholder — el plan decía `Contoso S.A.` mientras no se sabía el nombre real. Se nace con el slug definitivo a propósito: el `empresaId` queda escrito en cada documento de `estimaciones` y en los custom claims, así que cambiarlo después costaría un backfill. El `nombre` sí es barato de cambiar en cualquier momento.
 2. **¿Los 7 usuarios son personas reales o roles compartidos?** ✅ **Respondido:** son **nombres de Puesto/Cargo** dentro de la empresa (Administrador, Muestreador, Supervisor Cosecha, etc.), no personas individuales. Cada Cargo tendrá su propio correo y contraseña reales al migrar a Firebase Auth (ya no clave `123` compartida).
 3. **¿Pantalla de administración de usuarios ahora o después?** ✅ **Respondido: ahora.** Se agregó como **Fase 5** de este plan (implementa el Sprint S6, que en el CODEX estaba como "Futuro").
 
@@ -44,7 +44,7 @@ Esto simplifica cada fase: ya no hay que replicar nada. Pero agrega una verifica
 
 Freddy lo detectó revisando la app: falta un nivel entre la empresa y el lote.
 
-El caso real: **Contoso tiene tres fincas grandes, separadas por kilómetros.** Cada finca tiene **su propio personal** — sus Muestreadores, su Supervisor Estimación y su Supervisor Cosecha. Lo que comparten las tres es la **planta de empaque**, y por eso Contoso necesita las dos vistas: el desglose de cada finca y **el consolidado de las tres**.
+El caso real: **Frutera Varfa tiene tres fincas grandes, separadas por kilómetros.** Cada finca tiene **su propio personal** — sus Muestreadores, su Supervisor Estimación y su Supervisor Cosecha. Lo que comparten las tres es la **planta de empaque**, y por eso Frutera Varfa necesita las dos vistas: el desglose de cada finca y **el consolidado de las tres**.
 
 La planta de empaque **no se modela como entidad** (decisión de Freddy, 2026-11-08). Es la consumidora del consolidado, no un dato de la app. Si algún día una finca despachara a otra planta, ahí habrá que revisarlo.
 
@@ -53,7 +53,7 @@ La planta de empaque **no se modela como entidad** (decisión de Freddy, 2026-11
 | | `empresaId` | `fincaId` |
 |---|---|---|
 | Para qué sirve | **Aislar** | **Agrupar** |
-| ¿Se puede cruzar? | Nunca: Contoso no ve datos de otra empresa | Sí, y es el requisito: el consolidado cruza las tres |
+| ¿Se puede cruzar? | Nunca: Frutera Varfa no ve datos de otra empresa | Sí, y es el requisito: el consolidado cruza las tres |
 | Quién lo hace cumplir | Las reglas de Firestore (Fase 6) | La UI y las queries |
 
 > ⚠️ **No modelar las fincas como empresas separadas.** Es el error natural y rompe el requisito: el aislamiento haría imposible el consolidado que la planta necesita.
@@ -85,6 +85,16 @@ El valor **se pre-carga desde el usuario** en la pantalla de Encabezado, para qu
 
 Las fincas van en **catálogo, no en texto libre**: escrito a mano aparecen "La Esperanza" y "la esperanza" y el consolidado se parte en dos.
 
+### Agregar una finca nueva no requiere tocar código
+
+Es la ventaja de que sea un catálogo: **dar de alta una cuarta finca es crear un documento en `fincas`**, nada más. Sin cambio de esquema, sin despliegue, sin backfill.
+
+Esa propiedad se pierde fácil si alguien la rompe sin darse cuenta, así que al implementar las fases 5 y 8:
+
+- **Las fincas no van en un archivo de constantes**, al estilo de `DEFECT_CODES` en `sampling.js`. Se leen siempre de la colección.
+- **El selector de Finca se llena desde la colección**, no desde un array escrito a mano. Si se hardcodea, la finca nueva existe en la base pero no aparece en el filtro — y ese bug cuesta verlo.
+- **El reporte consolidado no se maqueta con tres columnas.** Si se arma como "Cabo Zarzo | Augrofresh | Ananasinc", una cuarta finca rompe el diseño. Tiene que recorrer las fincas que existan.
+
 ### Dos alcances de visibilidad dentro de la misma empresa
 
 | Rol | Alcance | Ve |
@@ -108,7 +118,7 @@ No es una fase nueva: es un campo que atraviesa casi todas.
 
 | Fase | Qué se le suma |
 |---|---|
-| 1 — Modelo de datos | Crear también la colección `fincas` con las tres de Contoso |
+| 1 — Modelo de datos | Crear también la colección `fincas` con las tres: `cabo-zarzo`, `augrofresh`, `ananasinc` |
 | 2 — Backfill | ✅ **Decidido (2026-11-08):** los documentos que hay hoy son **datos de prueba**, así que el backfill les asigna la **primera finca** y no hay que mapear nada a mano |
 | 3 — Custom Claims | El claim lleva `fincaId` además de `empresaId` y `rol` |
 | 4 — Login | La sesión conserva `fincaId` |
@@ -161,16 +171,25 @@ Queda como limpieza opcional borrar `requestCreateEstimation` y el import de `ad
 
 ## Fase 1 — Modelo de datos
 
-1. Crear la colección `empresas` en Firestore, con la primera empresa (placeholder, a renombrar después):
+1. Crear la colección `empresas` con la empresa real:
    ```
    empresas/
-     contoso/
-       nombre: "Contoso S.A."   // placeholder — se renombra más adelante
+     frutera-varfa/
+       nombre: "Frutera Varfa"
        activa: true
    ```
-   `empresaId` = `contoso` (slug corto y estable, no un ID autogenerado). Renombrar después es editar `nombre`; si además cambia el `empresaId`, requiere un backfill puntual (mismo patrón que la Fase 2, pero acotado a `estimaciones.empresaId` y `usuarios/{uid}.empresaId`/custom claims).
+   El `empresaId` es un slug corto y estable, no un ID autogenerado. Es el valor que va a quedar escrito en cada documento de `estimaciones` y en los custom claims de cada usuario, así que se define una vez y no se toca. El `nombre` sí se puede editar cuando sea.
 
-**Salida:** colección `empresas` con al menos un documento. Cero impacto en la app todavía.
+2. Crear la colección `fincas` con las tres fincas (nombres confirmados el 2026-11-14):
+   ```
+   fincas/
+     cabo-zarzo/   empresaId: "frutera-varfa"   nombre: "Cabo Zarzo"   activa: true
+     augrofresh/   empresaId: "frutera-varfa"   nombre: "Augrofresh"   activa: true
+     ananasinc/    empresaId: "frutera-varfa"   nombre: "Ananasinc"    activa: true
+   ```
+   Mismo criterio de slug. `cabo-zarzo` lleva guion porque son dos palabras; `augrofresh` va con U y `ananasinc` como una sola palabra — confirmado, no son erratas.
+
+**Salida:** las colecciones `empresas` y `fincas` creadas, con un documento y tres documentos respectivamente. **Cero impacto en la app todavía** — nada las lee, así que no hay forma de romper nada.
 
 ---
 
@@ -198,7 +217,7 @@ Todos los documentos de `estimaciones` hoy NO tienen `empresaId`. Antes de exigi
      <uid>/                 // uid = el mismo ID de la cuenta de Firebase Auth
        nombre:    "Supervisor Cosecha"   // el Cargo/Puesto, lo que hoy es "Usuario"
        rol:       "Supervisor Cosecha"   // debe coincidir con ROLES de roles.js
-       empresaId: "contoso"
+       empresaId: "frutera-varfa"
        activo:    true
        creadoEn:  <timestamp>
    ```
