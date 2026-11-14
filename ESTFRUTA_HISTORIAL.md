@@ -397,6 +397,42 @@ Razones: nadie usaba esos dominios, la app de campo sale de Firebase Hosting, y 
 
 ---
 
+<a id="fase1-multiempresa-2026-11-14"></a>
+## Fase 1 del plan multiempresa ejecutada — `empresas` y `fincas` (2026-11-14) ✅
+
+Primera fase del [plan multiempresa](ESTFRUTA_PLAN_MULTIEMPRESA_OPCION_B.md) que realmente se ejecuta. Hasta hoy el plan estaba escrito completo pero sin una sola línea aplicada.
+
+### Qué se creó
+
+| Ruta | Campos |
+|---|---|
+| `empresas/frutera-varfa` | `nombre: "Frutera Varfa"` · `activa: true` |
+| `fincas/cabo-zarzo` | `empresaId: "frutera-varfa"` · `nombre: "Cabo Zarzo"` · `activa: true` |
+| `fincas/augrofresh` | `empresaId: "frutera-varfa"` · `nombre: "Augrofresh"` · `activa: true` |
+| `fincas/ananasinc` | `empresaId: "frutera-varfa"` · `nombre: "Ananasinc"` · `activa: true` |
+
+Los IDs son slugs cortos y estables, elegidos a mano — no autogenerados. Son el valor que va a quedar escrito en cada documento de `estimaciones` y en los custom claims, así que no se tocan más. El `nombre` sí se puede editar cuando sea.
+
+`augrofresh` va con U y `ananasinc` como una sola palabra: confirmado por Freddy, no son erratas. "Contoso" era un nombre de ejemplo mientras se diseñaba el requisito; la empresa real es Frutera Varfa.
+
+### Por qué hubo que hacerlo a mano en la consola
+
+**No se puede crear estas colecciones por REST.** `firestore.rules` tiene `match /{document=**} { allow read, write: if false; }` como regla por defecto y solo abre `estimaciones`. Así que `empresas` y `fincas` solo son escribibles desde la consola de Firebase o con el Admin SDK. Eso es correcto y no hay que cambiarlo para "facilitar" nada — la exposición de `estimaciones` ya es suficiente problema (es lo que la Fase 6 viene a cerrar).
+
+Detalle de la consola que cuesta un minuto si no se sabe: al agregar un campo booleano, el desplegable **Tipo** arranca en `string` y el de **Valor** arranca en `falso`. Hay que cambiar los dos. Si solo se cambia el Tipo, queda `activa: false`; si no se cambia ninguno, queda la cadena `"true"`, que no es lo mismo que el booleano y rompería cualquier filtro posterior. Se verificó documento por documento que los cuatro quedaron con booleano real.
+
+### Impacto en la app: cero
+
+Nada en `src/` lee `empresas` ni `fincas` todavía. Las colecciones están ahí esperando a las fases siguientes. No hay forma de que esto rompa nada en producción, que es justamente por qué la Fase 1 se diseñó así.
+
+### Lo que sigue
+
+**Fase 2 — backfill.** Agregar `empresaId: "frutera-varfa"` y `fincaId: "ananasinc"` a los documentos de `estimaciones` que ya existen. Decisión de Freddy: los documentos actuales son datos de prueba, así que van todos a Ananasinc sin mapeo caso por caso (los datos de prueba se declararon como tales el 2026-11-08; la finca se eligió el 2026-11-14). Aditivo únicamente — no tocar ningún otro campo, y los anulados también llevan los dos campos.
+
+Este backfill sí se puede hacer por REST, porque `estimaciones` está abierta.
+
+---
+
 ## Bugs resueltos
 
 | Bug | Causa raíz | Solución |

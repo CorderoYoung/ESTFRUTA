@@ -2,7 +2,7 @@
 
 > Complementa la sección "Plan Multiempresa — Decisión de Seguridad" del CODEX. Ese documento explica **qué** hay que cambiar y **por qué** se eligió la Opción B; este documento define **en qué orden** ejecutarlo sin romper la app en producción, y qué probar en cada paso.
 >
-> Creado: 2026-07-28 · Actualizado: 2026-11-07.
+> Creado: 2026-07-28 · Actualizado: 2026-11-14.
 
 ---
 
@@ -118,8 +118,8 @@ No es una fase nueva: es un campo que atraviesa casi todas.
 
 | Fase | Qué se le suma |
 |---|---|
-| 1 — Modelo de datos | Crear también la colección `fincas` con las tres: `cabo-zarzo`, `augrofresh`, `ananasinc` |
-| 2 — Backfill | ✅ **Decidido (2026-11-08):** los documentos que hay hoy son **datos de prueba**, así que el backfill les asigna la **primera finca** y no hay que mapear nada a mano |
+| 1 — Modelo de datos | ✅ **Hecho el 2026-11-14** — colección `fincas` creada con las tres: `cabo-zarzo`, `augrofresh`, `ananasinc` |
+| 2 — Backfill | ✅ **Decidido:** los documentos que hay hoy son **datos de prueba**, así que el backfill les asigna todos a **Ananasinc** (`ananasinc`) y no hay que mapear nada a mano (2026-11-08; finca elegida el 2026-11-14) |
 | 3 — Custom Claims | El claim lleva `fincaId` además de `empresaId` y `rol` |
 | 4 — Login | La sesión conserva `fincaId` |
 | 5 — Admin de usuarios | Alta de usuarios con finca asignada, y alta de fincas |
@@ -191,6 +191,23 @@ Queda como limpieza opcional borrar `requestCreateEstimation` y el import de `ad
 
 **Salida:** las colecciones `empresas` y `fincas` creadas, con un documento y tres documentos respectivamente. **Cero impacto en la app todavía** — nada las lee, así que no hay forma de romper nada.
 
+### ✅ Ejecutada el 2026-11-14
+
+Creadas a mano en la consola de Firebase (https://console.firebase.google.com/project/estfruta/firestore). **No se pueden crear por REST**: `firestore.rules` tiene `match /{document=**} { allow read, write: if false; }` como regla por defecto y solo abre `estimaciones`, así que `empresas` y `fincas` solo son escribibles desde la consola o con el Admin SDK. Eso es correcto y no hay que cambiarlo.
+
+Lo que quedó escrito, verificado documento por documento en la consola:
+
+| Ruta | Campos |
+|---|---|
+| `empresas/frutera-varfa` | `nombre: "Frutera Varfa"` · `activa: true` |
+| `fincas/cabo-zarzo` | `empresaId: "frutera-varfa"` · `nombre: "Cabo Zarzo"` · `activa: true` |
+| `fincas/augrofresh` | `empresaId: "frutera-varfa"` · `nombre: "Augrofresh"` · `activa: true` |
+| `fincas/ananasinc` | `empresaId: "frutera-varfa"` · `nombre: "Ananasinc"` · `activa: true` |
+
+`activa` es booleano real (`true`), no la cadena `"true"` — en la consola hay que cambiar el *Tipo* a `boolean` y el *Valor* de `falso` a `verdadero`, porque los dos desplegables arrancan en el valor equivocado.
+
+Para agregar una cuarta finca más adelante: un documento más en `fincas` con el mismo `empresaId`, desde la consola. No hay que tocar código.
+
 ---
 
 ## Fase 2 — Backfill de datos existentes
@@ -200,7 +217,7 @@ Todos los documentos de `estimaciones` hoy NO tienen `empresaId`. Antes de exigi
 1. Script único (Node + Admin SDK, o manual si son pocos documentos) que recorra `estimaciones` y agregue `empresaId: '<la empresa actual>'` a cada documento que no lo tenga.
 2. Verificar con una query: contar documentos totales vs. documentos con `empresaId` — deben coincidir al terminar.
 3. Aditivo únicamente — no tocar ningún otro campo.
-4. Agregar en la misma pasada `fincaId` con **la primera finca**: los documentos actuales son datos de prueba, así que no hace falta decidir caso por caso (decisión de Freddy, 2026-11-08). Ver [Requisito nuevo — fincas](#fincas).
+4. Agregar en la misma pasada `fincaId: 'ananasinc'` a todos: los documentos actuales son datos de prueba, así que no hace falta decidir caso por caso (decisión de Freddy — datos de prueba el 2026-11-08, finca elegida el 2026-11-14). Ver [Requisito nuevo — fincas](#fincas).
 
 > Oportunidad: este es el momento natural para decidir si se aprovecha el mismo script para limpiar la **doble grafía de campos** (quedarse con un solo juego, mayúscula o minúscula). No está decidido. Si se hace, las reglas de la Fase 6 deben ajustarse en el mismo despliegue.
 
@@ -374,7 +391,7 @@ allow delete: if false;
 |---|---|---|
 | 0.1 | Verificar mismatch de mayúsculas | ✅ Cerrada — no existía |
 | 0.2 | `throw` de depuración en `requestCreateEstimation` | ✅ Cerrada — código muerto, no bloquea nada |
-| 1 | Colección `empresas` | Pendiente |
+| 1 | Colecciones `empresas` y `fincas` | ✅ **Cerrada el 2026-11-14** — 1 empresa + 3 fincas creadas en la consola de Firebase |
 | 2 | Backfill `empresaId` en datos existentes | Pendiente — prerequisito de Fase 6 |
 | 3 | Firebase Auth + Custom Claims + Cloud Functions + bootstrap Administrador | Pendiente — prerequisito de Fases 4-6 |
 | 4 | Login nuevo en la app | Pendiente — prerequisito de Fase 6 |
@@ -388,4 +405,4 @@ allow delete: if false;
 
 > 📌 **El requisito de fincas (2026-11-08) atraviesa las Fases 1, 2, 3, 4, 5, 7, 8 y 10.** No es una fase aparte y no conviene hacerlo en una segunda tanda: son los mismos archivos, las mismas queries y la misma clave de duplicados. Ver [Requisito nuevo — fincas](#fincas).
 
-Nada de este plan se ha ejecutado todavía. La Fase 0 está cerrada, así que el arranque natural es la **Fase 1** (colección `empresas`), seguida del backfill. Lo que justifica llegar hasta la Fase 6 es la exposición permanente descrita arriba, no una fecha límite.
+Las Fases 0 y 1 están cerradas (la 1 el 2026-11-14: `empresas` y `fincas` ya existen en Firestore). El siguiente paso es la **Fase 2**, el backfill de `empresaId` + `fincaId` sobre los documentos de `estimaciones` que ya existen. Lo que justifica llegar hasta la Fase 6 es la exposición permanente descrita arriba, no una fecha límite.
