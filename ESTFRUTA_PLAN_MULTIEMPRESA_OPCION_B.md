@@ -33,10 +33,13 @@ Lo que sí implica: las Fases 3 a 6 tienen que estar **probadas**, no solo escri
 ## Antes de empezar: respuestas de Freddy
 
 1. **¿Cuántas empresas hay hoy y cómo se llaman?** ✅ **Respondido: cero.** Hoy no existe ninguna empresa creada en el sistema — la app funciona como si todo fuera una sola empresa implícita. **Actualizado el 2026-11-14:** la empresa se llama **Frutera Varfa**, `empresaId: 'frutera-varfa'`. Ya no hay placeholder — el plan decía `Contoso S.A.` mientras no se sabía el nombre real. Se nace con el slug definitivo a propósito: el `empresaId` queda escrito en cada documento de `estimaciones` y en cada documento de `usuarios`, así que cambiarlo después costaría un backfill. El `nombre` sí es barato de cambiar en cualquier momento.
-2. **¿Los 7 usuarios son personas reales o roles compartidos?** ✅ Respondido en su momento: son **nombres de Puesto/Cargo**, no personas individuales. ⚠️ **Reabierta el 2026-11-14 por el requisito de fincas, y hay que cerrarla antes de crear `usuarios`.** Con tres fincas, "un usuario por Cargo" pasa a ser Cargo × finca: 3 roles de finca × 3 fincas + 4 roles de alcance empresa = **13 cuentas**, con clave compartida dentro de cada puesto. El problema es que eso choca de frente con lo que se arregló el 2026-11-07: todo el punto de `aprobadoPor` es saber **quién** aprobó, y si tres muestreadores de Cabo Zarzo comparten un login, el campo dice la finca, no la persona. Las opciones son (a) una cuenta por persona, trazabilidad completa; (b) por persona solo los que firman —Supervisor Estimación, Supervisor Cosecha, Administrador— y Muestreador compartido por finca; (c) Cargo × finca, 13 cuentas, el mínimo de administración. **Pregunta adjunta:** ¿tiene correo electrónico la gente de campo? Sin correo real no funciona `sendPasswordResetEmail` y las claves las tiene que reponer el Administrador a mano.
+2. **¿Los 7 usuarios son personas reales o roles compartidos?** ✅ **Cerrada definitivamente el 2026-11-14: una cuenta por persona.** La respuesta vieja ("son Cargos, no personas") quedó obsoleta con el requisito de fincas y con lo que se arregló el 2026-11-07: todo el sentido de `aprobadoPor` es saber **quién** aprobó, y una clave compartida por puesto convierte ese campo en el nombre de un puesto. Con tres fincas hubieran sido 13 logins compartidos; ahora es una cuenta por persona real.
+
+   **Y la empresa le crea un correo a cada quien** (decisión de Freddy, 2026-11-14). Esto no es un detalle administrativo: es lo que hace viable toda la [ruta sin Cloud Functions](#decision-spark). Con buzón real, `sendPasswordResetEmail` funciona desde el cliente y el Administrador no necesita Admin SDK para reponer una clave. Sin buzón real **no hay forma de recuperar una clave olvidada**: la consola de Firebase solo permite *enviar* el correo de restablecimiento, no escribir una contraseña nueva a mano, y la única alternativa es el Admin SDK. Una cuenta con correo inventado y clave perdida se abandona y se crea otra.
+
 3. **¿Pantalla de administración de usuarios ahora o después?** ✅ **Respondido: ahora.** Se agregó como **Fase 5** de este plan (implementa el Sprint S6, que en el CODEX estaba como "Futuro").
 
-**Estado: la 1 y la 3 cerradas; la 2 reabierta el 2026-11-14 y es el único bloqueo para arrancar la Fase 3.**
+**Estado: las tres cerradas. El plan no tiene decisiones abiertas — la Fase 3 puede arrancar.** Lo único pendiente que no depende de nosotros son los correos del personal, y hacen falta recién en la Fase 5.
 
 ---
 
@@ -288,7 +291,9 @@ Qué se paga a cambio — los tres, con nombre y apellido:
    ```
    usuarios/
      <uid>/                 // uid = el mismo ID de la cuenta de Firebase Auth
-       nombre:    "..."                    // nombre visible
+       usuario:   "jperez"                 // parte local del correo — lo que se digita al entrar
+       nombre:    "Juan Perez"             // nombre visible completo
+       correo:    "jperez@fruteravarfa.com"
        rol:       "Supervisor Estimacion"  // debe coincidir con ROLES de roles.js
        empresaId: "frutera-varfa"
        fincaId:   "cabo-zarzo"             // null = alcance empresa (ve todas las fincas)
@@ -296,6 +301,12 @@ Qué se paga a cambio — los tres, con nombre y apellido:
        creadoEn:  <timestamp>
    ```
    `activo: false` es la forma de "eliminar" un usuario, igual que `allow delete: if false` en `estimaciones`: nunca hard-delete, para no perder la trazabilidad de quién capturó qué.
+
+   <a id="convencion-usuario"></a>
+   **Convención del campo `usuario`** — conviene fijarla antes de crear la primera cuenta, porque el correo se deriva de ella y cambiarla después significa cuenta nueva:
+   - minúsculas, sin tildes, sin espacios, sin ñ: `jperez`, no `J. Pérez`;
+   - inicial del nombre + apellido; si choca, se numera: `jperez`, `jperez2`;
+   - es **estable**: si alguien se casa o cambia de apellido, el `usuario` no se toca. El `nombre` visible sí.
 
 4. **Bootstrap del primer Administrador, a mano y una sola vez.** En la consola: Authentication → Users → Agregar usuario (correo + clave), copiar el `uid` que queda, y crear a mano `usuarios/{uid}` con `rol: "Administrador"`, `empresaId: "frutera-varfa"`, `fincaId: null`, `activo: true`. Hasta que exista ese Administrador nadie puede usar la pantalla de la Fase 5 para crear a los demás.
 
@@ -306,7 +317,15 @@ Qué se paga a cambio — los tres, con nombre y apellido:
 ## Fase 4 — Reescribir el login de la app
 
 1. `authService.js`: reemplazar `validateCredentials`/`authenticateUser` (array local) por `signInWithEmailAndPassword` de Firebase Auth, y después leer `rol`/`empresaId`/`fincaId` con un `getDoc` de `usuarios/{uid}`. Mantener la firma de salida que ya espera `AppTomaFisica.js` (`{success, user, redirectPath}` / `{success:false, error}`). Si la cuenta de Auth existe pero no tiene documento en `usuarios`, o lo tiene con `activo: false`, es un login fallido con mensaje propio ("Usuario inactivo"), no el genérico.
-2. `LoginScreen.js`: cambiar el selector de "Usuario" (Cargo) por un formulario de correo + contraseña — cambio de UX visible, avisar antes de desplegar. El botón ya está `disabled` sin conexión; eso se queda.
+2. `LoginScreen.js`: cambiar el selector de "Usuario" (Cargo) por un formulario de **Usuario + Clave**. El campo Usuario recibe el nombre corto (`jperez`), no el correo completo: escribir `@fruteravarfa.com` en un celular en el campo, con lodo y con sol, es una fuente de errores que no aporta nada. La app arma el correo antes de llamar a Firebase:
+
+   ```js
+   const DOMINIO = process.env.REACT_APP_DOMINIO_CORREO;   // 'fruteravarfa.com'
+   const correo = usuario.includes('@') ? usuario : `${usuario.trim().toLowerCase()}@${DOMINIO}`;
+   await signInWithEmailAndPassword(auth, correo, clave);
+   ```
+
+   El `includes('@')` no es adorno: deja entrar igual a quien tenga un correo de otro dominio, y evita tener que tocar código el día que haya una segunda empresa. El dominio va en `.env` (ya existe el archivo, ver el incidente del build del 2026-11-08), **no incrustado en el código**. Cambio de UX visible: avisar antes de desplegar. El botón ya está `disabled` sin conexión; eso se queda.
 3. `AppTomaFisica.js`: agregar `onAuthStateChanged` de Firebase Auth como fuente de verdad; `localStorage` queda solo como caché para la carga inicial offline.
 4. `ProtectedRoute.js`: verificar que haya sesión y que el rol permita la ruta. Hoy lee `localStorage` de forma **síncrona**.
 
@@ -341,7 +360,7 @@ Qué se paga a cambio — los tres, con nombre y apellido:
    > ⚠️ Las dos escrituras no son atómicas. Si la cuenta de Auth se crea y el `setDoc` falla, queda una cuenta huérfana que puede loguearse y no ve nada. No es una fuga —las reglas le niegan todo sin documento espejo— pero hay que manejar el error en pantalla y dejar en la Fase 5 una vista de "cuentas sin documento" para limpiarlas.
 
 5. **Editar / desactivar usuario:** cambiar Rol, Finca o marcar `activo: false`, con un `updateDoc` directo sobre `usuarios/{uid}` — lo autoriza la regla, no código de servidor. Un usuario desactivado debe fallar el login con un mensaje claro ("Usuario inactivo"), no con el genérico "Usuario o clave incorrecta". El efecto es inmediato: las reglas leen el documento vivo.
-6. **Restablecer contraseña:** `sendPasswordResetEmail` desde el cliente. Funciona en Spark y evita que el Administrador tenga que conocer claves ajenas.
+6. **Restablecer contraseña:** `sendPasswordResetEmail` desde el cliente, al correo real de la persona. Funciona en Spark y evita que el Administrador tenga que conocer claves ajenas. **Depende enteramente de que el buzón exista de verdad** — ver la respuesta 2 de "Antes de empezar". El mismo botón debe estar en la pantalla de login ("¿Olvidó su clave?"), para que no haya que molestar al Administrador por algo que la persona puede resolver sola.
 7. **Gestión de `empresas` y `fincas`:** se quedan en la consola. Las reglas las dejan en solo lectura desde la app (ver Fase 6). Dar de alta una cuarta finca es crear un documento, y es una operación de una vez al año.
 
 **Salida:** el Administrador crea desde la app las cuentas de los otros 6 Cargos — ya no hace falta tocar la consola de Firebase para altas normales.
@@ -427,6 +446,7 @@ Tres cosas que hacen el trabajo pesado aquí:
 1. ⚠️ **`EstimationHeaderPage.js` es el archivo clave**, no `estimationService.js`: ahí está el `addDoc` que crea las estimaciones (`guardarFirebase()`). Hay que inyectar `empresaId` en ese payload, en el chequeo de duplicados y en el registro que se guarda localmente en modo offline. Si se sigue solo lo que decía este plan antes, los documentos nuevos saldrían sin `empresaId` y las reglas de la Fase 6 los rechazarían.
 2. `estimationService.js`: inyectar `empresaId` en sus `updateDoc` y agregar `where('empresaId','==', empresaId)` en `checkFirebaseDuplicate`.
 3. `operationalDraftStorage.js`: `crearUniqueKey()` debe llevar `empresaId` como primer segmento (`EMPRESA-COSECHA-TIPO-GF-LOTE-PARCELA-AÑO`).
+4. **Guardar el `uid`, no solo el nombre, en los campos de autoría.** Hoy `handleAprobar` y `handleDelete` escriben `resolvedUser?.Usuario`, una cadena suelta. Con cuentas por persona hay que escribir `aprobadoPorUid` (el `uid`, que nunca cambia) **y** `aprobadoPor` (el nombre tal como estaba ese día, como fotografía). Lo mismo para `anuladoPor`. Si solo se guarda el nombre, el día que alguien cambie de apellido o se corrija una errata, el historial queda firmado por alguien que ya no existe con ese nombre; si solo se guarda el `uid`, el reporte no se puede leer sin cruzar contra `usuarios`. Van los dos.
 
 > ⚠️ En la base ya conviven **dos formatos de `uniqueKey`**: documentos viejos con 4 segmentos (`"C1-11-40-2026"`) y el formato actual de 6. Al agregar `empresaId` serían tres. Contemplarlo en la validación de duplicados, y definir qué hacer con los borradores locales pendientes de sincronizar al momento del despliegue.
 
@@ -494,7 +514,9 @@ Tres cosas que hacen el trabajo pesado aquí:
 1. Fases 0-2 (arreglos previos + modelo de datos + backfill) — cero impacto visible.
 2. Fase 3 (habilitar Auth + `firebaseConfig.js` + colección `usuarios` + bootstrap del primer Administrador a mano) — todavía nada visible para el resto de usuarios.
 3. Fase 4 (login nuevo) — el Administrador ya puede entrar con correo/contraseña. Los demás Cargos siguen sin cuenta, así que **coordinar el corte**: considerar una ventana corta donde el Administrador crea todas las cuentas antes de anunciar el cambio al equipo.
-4. Fase 5 (pantalla de administración) — Administrador crea las 6 cuentas restantes.
+4. Fase 5 (pantalla de administración) — Administrador crea las cuentas del resto del personal.
+
+   > 🔴 **Dependencia externa, y es la única que no depende de nosotros: los correos.** Frutera Varfa tiene que haber creado el buzón de cada persona **antes** de este paso. Sin eso no se puede dar de alta a nadie con recuperación de clave, y es lo único del plan que puede atrasar el arranque de enero sin que haya una línea de código de por medio. Conviene pedir la lista completa —nombre, finca, rol, correo— apenas se cierre la Fase 3, no en enero.
 5. Validar que todos los Cargos pueden loguearse antes de seguir.
 6. Fase 6 (reglas nuevas) — el punto de no retorno. Ventana de baja actividad de campo, con alguien monitoreando.
 7. Fases 7-9 en el mismo release que la Fase 6 (las reglas nuevas van a rechazar escrituras sin `empresaId`).
@@ -512,6 +534,7 @@ Tres cosas que hacen el trabajo pesado aquí:
 - **Ventana de riesgo en la Fase 6:** si el backfill (Fase 2) no fue 100% completo, cualquier documento huérfano queda inaccesible al desplegar las reglas nuevas. Tener lista una reversión rápida.
 - **Un despliegue de reglas puede romper la app en silencio.** Es exactamente lo que pasó entre setiembre y noviembre de 2026: nadie se dio cuenta durante 68 días. Después de cada despliegue, verificar con una lectura real, y considerar un chequeo periódico que avise si Firestore deja de responder.
 - **Borradores offline en tránsito:** dispositivos con registros sin sincronizar al momento del despliegue de las Fases 7-8 pueden tener `uniqueKey` en formato viejo.
+- **Los correos del personal son una dependencia externa con fecha.** La Fase 5 no puede correr hasta que Frutera Varfa cree los buzones. Es el único punto del plan que no se resuelve programando, y el que más fácil se atrasa porque depende de otra gente. Pedir la lista temprano.
 
 ---
 
