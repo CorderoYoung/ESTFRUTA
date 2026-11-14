@@ -411,7 +411,7 @@ Primera fase del [plan multiempresa](ESTFRUTA_PLAN_MULTIEMPRESA_OPCION_B.md) que
 | `fincas/augrofresh` | `empresaId: "frutera-varfa"` · `nombre: "Augrofresh"` · `activa: true` |
 | `fincas/ananasinc` | `empresaId: "frutera-varfa"` · `nombre: "Ananasinc"` · `activa: true` |
 
-Los IDs son slugs cortos y estables, elegidos a mano — no autogenerados. Son el valor que va a quedar escrito en cada documento de `estimaciones` y en los custom claims, así que no se tocan más. El `nombre` sí se puede editar cuando sea.
+Los IDs son slugs cortos y estables, elegidos a mano — no autogenerados. Son el valor que va a quedar escrito en cada documento de `estimaciones` y en cada documento de `usuarios`, así que no se tocan más. El `nombre` sí se puede editar cuando sea.
 
 `augrofresh` va con U y `ananasinc` como una sola palabra: confirmado por Freddy, no son erratas. "Contoso" era un nombre de ejemplo mientras se diseñaba el requisito; la empresa real es Frutera Varfa.
 
@@ -466,7 +466,55 @@ La lección no es sobre Firestore sino sobre el método: **una pasada de escritu
 
 ### Lo que sigue
 
-**Fase 3 — Firebase Auth + custom claims + las dos Cloud Functions.** Hasta aquí el impacto en la app ha sido literalmente cero: se agregaron colecciones que nadie lee y dos campos que nadie consulta. La Fase 3 es donde empieza el trabajo real, y es prerequisito de todo lo que falta (4, 5 y 6).
+**Fase 3 — Firebase Auth.** Hasta aquí el impacto en la app ha sido literalmente cero: se agregaron colecciones que nadie lee y dos campos que nadie consulta. La Fase 3 es donde empieza el trabajo real, y es prerequisito de todo lo que falta (4, 5 y 6). Ese mismo día, al planificarla, cambió de forma: ver [Decisión — sin Cloud Functions](#decision-spark-2026-11-14).
+
+---
+
+<a id="decision-spark-2026-11-14"></a>
+## Decisión — la Fase 3 va sin Cloud Functions, el proyecto se queda en Spark (2026-11-14)
+
+Al planificar la Fase 3 apareció un bloqueo que el plan no había contemplado: **la fase estaba escrita sobre dos Cloud Functions con el Admin SDK (`crearUsuario` y `actualizarUsuario`), y eso no se puede desplegar.** Cloud Functions es exclusivo del plan Blaze y `estfruta` está en Spark. No había carpeta `functions/` ni entrada `"functions"` en `firebase.json`: nunca existió, no es que estuviera a medias.
+
+De paso se confirmó que **Authentication ni siquiera estaba inicializado** — la consola mostraba la pantalla de bienvenida con el botón "Comenzar".
+
+### Por qué no se subió a Blaze
+
+El costo corriente no era el problema: con 13 usuarios y 26 documentos, el consumo cae entero en la capa gratuita que Blaze conserva, así que la factura esperada era cero.
+
+Lo que lo frenó fue la **retención de verificación de la tarjeta**. La documentación en inglés habla de USD 1 y de unos días, pero Freddy ya había pasado por esto con un cliente, en Costa Rica: **USD 50 inmovilizados mes y medio**, porque el banco espera al cierre de mes aunque Google libere antes. Para un trabajo que en ese momento no tenía desembolso, inmovilizar eso para habilitar dos funciones que se pueden evitar era mal negocio.
+
+> 📌 Dato que conviene no volver a buscar: **las fuentes en inglés sobre la retención de Google Cloud no describen lo que pasa aquí.** Si alguna vez se evalúa Blaze otra vez, el número que vale es el de la experiencia local, no el de la documentación.
+
+### Qué se eligió en su lugar
+
+El rol, la empresa y la finca viven en `usuarios/{uid}` y las reglas los leen con `get()`. Las altas de usuario se hacen desde el navegador del Administrador con una **instancia secundaria** de la app de Firebase, que tiene su propio estado de autenticación y por lo tanto no saca de sesión a quien está creando la cuenta.
+
+No es un parche: es la arquitectura elegida. Dos cosas mejoran respecto del plan original:
+
+- **Desactivar un usuario surte efecto de inmediato.** Con custom claims el token viejo sigue valiendo hasta que se refresca; con `get()` la regla lee el documento vivo. `activo: false` es un requisito real de la Fase 5.
+- **Desaparece el punto que el propio plan marcaba como el de mayor riesgo** — un bug en la validación de "quien invoca ya es Administrador" dentro de una Cloud Function con Admin SDK, que salta todas las reglas por diseño.
+
+### Lo que cuesta, dicho completo
+
+1. **Una lectura extra por consulta.** `get()` y `exists()` en reglas se cobran como lecturas normales. Con este volumen es ruido.
+2. **El registro público queda abierto.** En Authentication → Settings → User actions se puede apagar "Enable create (sign-up)" para que solo el Admin SDK cree cuentas — pero eso también bloquearía la pantalla de la Fase 5, que las crea desde el cliente. Así que la casilla se queda encendida y cualquiera con el `projectId` puede registrarse. **Mitigación:** una cuenta así queda sin documento en `usuarios` y las reglas le niegan todo; hay que revisar la lista de Users cada tanto y evaluar App Check.
+3. **Borrar una cuenta de Auth de verdad requiere la consola.** No estorba, porque el plan ya había decidido `activo: false` en lugar de borrar.
+
+El riesgo de escalamiento no desaparece, **se muda**: ahora vive en las reglas de `usuarios`. Si `allow update` no impide que alguien edite su propio documento, se asciende solo a Administrador. Por eso la Fase 10 cambió: las pruebas con el emulador de reglas pasaron de ser un extra a ser el control principal.
+
+### Cuándo revisar esto
+
+El día que EstFruta necesite algo que corra en servidor sin un humano con el navegador abierto: reportes programados, correos automáticos, un recálculo nocturno, una integración con la planta de empaque. Ahí Blaze entra por su propio peso. Migrar entonces es barato — `usuarios` ya va a existir, solo cambian las reglas y se agregan las funciones.
+
+### Otros dos hallazgos del mismo repaso del código
+
+**`src/firebaseConfig.js` no exporta `auth`**, solo `db`. Y el `appId` del bloque de configuración es un marcador de posición (`...web:a1b2c3d4e5f6g7h8i9j0k1`). La `apiKey` sí es real y Firestore funciona igual, pero antes de habilitar Auth hay que bajar la configuración real desde la consola y reemplazar el objeto completo.
+
+**`ProtectedRoute` va a reintroducir un bug ya resuelto si no se diseña con cuidado.** Hoy lee la sesión de `localStorage` de forma síncrona; `onAuthStateChanged` es asíncrono y en el primer render devuelve `null`. Sin un estado explícito de "cargando", manda a `/login` a un usuario que sí tiene sesión — que es literalmente el bug *"`currentUser` llegaba `null` a `ProtectedRoute`"* de la tabla de abajo. Tres estados, no dos.
+
+### Fecha objetivo
+
+En la misma conversación quedó fijada la primera fecha real del proyecto desde que venció la de agosto: **entrar en producción con Frutera Varfa a mediados de enero de 2027**, sujeto al desembolso. A diferencia de aquella, esta es una meta de calendario y no una bomba de tiempo dentro de las reglas: si se corre, no se rompe nada.
 
 ---
 

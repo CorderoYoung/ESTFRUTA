@@ -1,4 +1,6 @@
-# Plan de Implementación — Multiempresa, Opción B (Firebase Auth + Custom Claims)
+# Plan de Implementación — Multiempresa, Opción B (Firebase Auth)
+
+> **Nota de título (2026-11-14):** este plan se llamó durante meses "Opción B (Firebase Auth + Custom Claims)". Los custom claims se descartaron — ver [Decisión — sin Cloud Functions](#decision-spark). El aislamiento por empresa sigue siendo el mismo y se sigue aplicando en las reglas de Firestore; lo que cambia es de dónde sale el `empresaId`: del documento `usuarios/{uid}`, no del token.
 
 > Complementa la sección "Plan Multiempresa — Decisión de Seguridad" del CODEX. Ese documento explica **qué** hay que cambiar y **por qué** se eligió la Opción B; este documento define **en qué orden** ejecutarlo sin romper la app en producción, y qué probar en cada paso.
 >
@@ -19,15 +21,22 @@ Antes, la fecha de expiración actuaba como un cierre forzado de la exposición:
 **3. La tarea 0.1 está cerrada: no había ningún mismatch.**
 Ver Fase 0 abajo.
 
+<a id="fecha-objetivo"></a>
+### 🎯 Fecha objetivo: mediados de enero de 2027 (fijada el 2026-11-14)
+
+La idea es **entrar en producción con Frutera Varfa a mediados de enero de 2027**, sujeto a que salga el desembolso. Es la primera fecha real que tiene el proyecto desde que venció la del 31 de agosto, y se diferencia de aquella en algo importante: aquella era una bomba de tiempo escrita dentro de las reglas, que explotó sola y dejó la app caída 68 días. Esta es una meta de calendario — si se corre, no se rompe nada.
+
+Lo que sí implica: las Fases 3 a 6 tienen que estar **probadas**, no solo escritas, antes de esa fecha, porque la Fase 6 es el punto de no retorno y no conviene desplegarla con el equipo ya trabajando en campo.
+
 ---
 
 ## Antes de empezar: respuestas de Freddy
 
-1. **¿Cuántas empresas hay hoy y cómo se llaman?** ✅ **Respondido: cero.** Hoy no existe ninguna empresa creada en el sistema — la app funciona como si todo fuera una sola empresa implícita. **Actualizado el 2026-11-14:** la empresa se llama **Frutera Varfa**, `empresaId: 'frutera-varfa'`. Ya no hay placeholder — el plan decía `Contoso S.A.` mientras no se sabía el nombre real. Se nace con el slug definitivo a propósito: el `empresaId` queda escrito en cada documento de `estimaciones` y en los custom claims, así que cambiarlo después costaría un backfill. El `nombre` sí es barato de cambiar en cualquier momento.
-2. **¿Los 7 usuarios son personas reales o roles compartidos?** ✅ **Respondido:** son **nombres de Puesto/Cargo** dentro de la empresa (Administrador, Muestreador, Supervisor Cosecha, etc.), no personas individuales. Cada Cargo tendrá su propio correo y contraseña reales al migrar a Firebase Auth (ya no clave `123` compartida).
+1. **¿Cuántas empresas hay hoy y cómo se llaman?** ✅ **Respondido: cero.** Hoy no existe ninguna empresa creada en el sistema — la app funciona como si todo fuera una sola empresa implícita. **Actualizado el 2026-11-14:** la empresa se llama **Frutera Varfa**, `empresaId: 'frutera-varfa'`. Ya no hay placeholder — el plan decía `Contoso S.A.` mientras no se sabía el nombre real. Se nace con el slug definitivo a propósito: el `empresaId` queda escrito en cada documento de `estimaciones` y en cada documento de `usuarios`, así que cambiarlo después costaría un backfill. El `nombre` sí es barato de cambiar en cualquier momento.
+2. **¿Los 7 usuarios son personas reales o roles compartidos?** ✅ Respondido en su momento: son **nombres de Puesto/Cargo**, no personas individuales. ⚠️ **Reabierta el 2026-11-14 por el requisito de fincas, y hay que cerrarla antes de crear `usuarios`.** Con tres fincas, "un usuario por Cargo" pasa a ser Cargo × finca: 3 roles de finca × 3 fincas + 4 roles de alcance empresa = **13 cuentas**, con clave compartida dentro de cada puesto. El problema es que eso choca de frente con lo que se arregló el 2026-11-07: todo el punto de `aprobadoPor` es saber **quién** aprobó, y si tres muestreadores de Cabo Zarzo comparten un login, el campo dice la finca, no la persona. Las opciones son (a) una cuenta por persona, trazabilidad completa; (b) por persona solo los que firman —Supervisor Estimación, Supervisor Cosecha, Administrador— y Muestreador compartido por finca; (c) Cargo × finca, 13 cuentas, el mínimo de administración. **Pregunta adjunta:** ¿tiene correo electrónico la gente de campo? Sin correo real no funciona `sendPasswordResetEmail` y las claves las tiene que reponer el Administrador a mano.
 3. **¿Pantalla de administración de usuarios ahora o después?** ✅ **Respondido: ahora.** Se agregó como **Fase 5** de este plan (implementa el Sprint S6, que en el CODEX estaba como "Futuro").
 
-**Las 3 preguntas están respondidas — el plan no tiene bloqueos abiertos para arrancar la Fase 0.**
+**Estado: la 1 y la 3 cerradas; la 2 reabierta el 2026-11-14 y es el único bloqueo para arrancar la Fase 3.**
 
 ---
 
@@ -120,7 +129,7 @@ No es una fase nueva: es un campo que atraviesa casi todas.
 |---|---|
 | 1 — Modelo de datos | ✅ **Hecho el 2026-11-14** — colección `fincas` creada con las tres: `cabo-zarzo`, `augrofresh`, `ananasinc` |
 | 2 — Backfill | ✅ **Hecho el 2026-11-14** — los 26 documentos quedaron con `fincaId: "ananasinc"`. Eran datos de prueba, así que no hubo que mapear nada a mano (decisión del 2026-11-08; finca elegida el 2026-11-14) |
-| 3 — Custom Claims | El claim lleva `fincaId` además de `empresaId` y `rol` |
+| 3 — Modelo de usuarios | `usuarios/{uid}` lleva `fincaId` además de `empresaId` y `rol`; `fincaId: null` = alcance empresa |
 | 4 — Login | La sesión conserva `fincaId` |
 | 5 — Admin de usuarios | Alta de usuarios con finca asignada, y alta de fincas |
 | 6 — Rules | Las reglas siguen validando **solo empresa**. La finca agrupa, no aísla: meterla en las reglas impediría el consolidado |
@@ -178,7 +187,7 @@ Queda como limpieza opcional borrar `requestCreateEstimation` y el import de `ad
        nombre: "Frutera Varfa"
        activa: true
    ```
-   El `empresaId` es un slug corto y estable, no un ID autogenerado. Es el valor que va a quedar escrito en cada documento de `estimaciones` y en los custom claims de cada usuario, así que se define una vez y no se toca. El `nombre` sí se puede editar cuando sea.
+   El `empresaId` es un slug corto y estable, no un ID autogenerado. Es el valor que va a quedar escrito en cada documento de `estimaciones` y en el documento `usuarios/{uid}` de cada persona, así que se define una vez y no se toca. El `nombre` sí se puede editar cuando sea.
 
 2. Crear la colección `fincas` con las tres fincas (nombres confirmados el 2026-11-14):
    ```
@@ -243,35 +252,67 @@ La doble grafía de campos **no se tocó**: `empresaId` y `fincaId` se escribier
 
 ---
 
-## Fase 3 — Firebase Authentication + Custom Claims (infraestructura)
+<a id="decision-spark"></a>
+## Decisión 2026-11-14 — sin Cloud Functions, el proyecto se queda en Spark
 
-1. Habilitar el proveedor **Email/Password** en Firebase Authentication (hoy no está inicializado en absoluto).
-2. Crear la colección `usuarios` en Firestore, espejo de las cuentas de Auth — necesaria porque el cliente no puede listar cuentas de Firebase Auth directamente, solo vía Admin SDK:
+El plan original apoyaba la Fase 3 en dos Cloud Functions con el Admin SDK. **Eso no se puede desplegar:** Cloud Functions es exclusivo del plan Blaze y el proyecto `estfruta` está en Spark. Las dos funciones eran lo único en todo el plan que exigía Blaze; nada más lo necesita.
+
+Se evaluó subir a Blaze. El costo mensual real de esta app cae entero en la capa gratuita, así que la factura esperada sería cero, pero la retención de verificación de la tarjeta no es simbólica en Costa Rica: **Freddy ya pasó por esto con un cliente y fueron USD 50 inmovilizados mes y medio**, porque el banco espera al cierre de mes aunque Google libere antes. Se decidió no pagar eso por ahora.
+
+**Decisión: Ruta Spark.** El rol, la empresa y la finca viven en `usuarios/{uid}` y las reglas los leen con `get()`. Las altas de usuario se hacen desde el cliente con una instancia secundaria de la app de Firebase. No es un parche temporal: es la arquitectura elegida.
+
+Qué se gana, además de no pagar:
+
+- **Desactivar un usuario surte efecto de inmediato.** Con custom claims el token viejo sigue siendo válido hasta que se refresca; con `get()` la regla lee el dato vivo. `activo: false` es un requisito real de la Fase 5, así que esto importa.
+- **Desaparece el punto de mayor riesgo del plan.** No hay Cloud Function con Admin SDK que programar mal. El riesgo se muda a las reglas de `usuarios`, que son unas pocas líneas, saltan a la vista y se prueban con el emulador.
+
+Qué se paga a cambio — los tres, con nombre y apellido:
+
+- **Una lectura extra por consulta.** `get()` y `exists()` en reglas cuestan como una lectura normal. Con este volumen es ruido.
+- **La casilla "Enable create (sign-up)" tiene que quedar encendida.** En Authentication → Settings → User actions se puede apagar para que solo el Admin SDK cree cuentas, pero eso también bloquearía la pantalla de la Fase 5, que crea las cuentas desde el navegador. Consecuencia: cualquiera que tenga el `projectId` puede registrarse. **Mitigación: una cuenta así no sirve de nada** — queda sin documento en `usuarios`, y las reglas le niegan todo. Hay que (a) revisar de vez en cuando la lista de Users de la consola buscando cuentas sin documento espejo, y (b) evaluar App Check para que solo la app pueda hablarle al proyecto.
+- **Borrar una cuenta de Auth de verdad requiere la consola.** No estorba: el plan ya había decidido `activo: false` en vez de borrar.
+
+**Cuándo revisar esta decisión.** El día que EstFruta necesite algo que corra en servidor sin un humano con el navegador abierto: reportes programados, correos automáticos, un recálculo nocturno, o una integración con la planta de empaque. Ahí Blaze entra por su propio peso. Migrar entonces es barato: `usuarios` ya existe, solo cambian las reglas y se agregan las funciones.
+
+---
+
+## Fase 3 — Firebase Authentication (infraestructura)
+
+> Reescrita el 2026-11-14. **Ya no hay Cloud Functions** — ver la decisión de arriba.
+
+1. **Habilitar el proveedor Email/Password** en Firebase Authentication. Hoy Authentication no está inicializado en absoluto: la consola muestra la pantalla de bienvenida con el botón "Comenzar". Email/Password es gratis en Spark; lo que exige Blaze es la autenticación por teléfono, que aquí no se usa.
+
+2. **Arreglar `src/firebaseConfig.js`.** Hoy solo exporta `db`; falta `export const auth = getAuth(app)`. Y ojo con el bloque de configuración: el `appId` que tiene es un marcador de posición (`...web:a1b2c3d4e5f6g7h8i9j0k1`). La `apiKey` sí es real y Firestore funciona igual, pero antes de habilitar Auth hay que bajar la configuración real desde la consola (Configuración del proyecto → Tus apps) y reemplazar el objeto completo.
+
+3. **Crear la colección `usuarios`**, espejo de las cuentas de Auth. Hace falta sí o sí porque el cliente no puede listar cuentas de Firebase Auth, y en esta ruta es además **la fuente de verdad del rol**:
    ```
    usuarios/
      <uid>/                 // uid = el mismo ID de la cuenta de Firebase Auth
-       nombre:    "Supervisor Cosecha"   // el Cargo/Puesto, lo que hoy es "Usuario"
-       rol:       "Supervisor Cosecha"   // debe coincidir con ROLES de roles.js
+       nombre:    "..."                    // nombre visible
+       rol:       "Supervisor Estimacion"  // debe coincidir con ROLES de roles.js
        empresaId: "frutera-varfa"
+       fincaId:   "cabo-zarzo"             // null = alcance empresa (ve todas las fincas)
        activo:    true
        creadoEn:  <timestamp>
    ```
-3. Cloud Function callable **`crearUsuario`** (Admin SDK): recibe `{ nombre, correo, claveTemporal, rol, empresaId }`, valida que quien la invoca ya tiene el custom claim de Administrador de esa misma empresa, crea la cuenta en Firebase Auth, le asigna los custom claims `{ empresaId, rol }`, y crea el doc espejo en `usuarios/{uid}`.
-4. Cloud Function callable **`actualizarUsuario`**: cambia `rol`/`empresaId`/`activo` — actualiza tanto los custom claims como el doc espejo. `activo: false` es la forma de "eliminar" un usuario (igual que `allow delete: if false` en `estimaciones` — nunca hard-delete, para no perder trazabilidad de quién capturó qué).
-5. **Bootstrap manual (una sola vez, fuera de la app):** crear a mano la primera cuenta de Administrador — consola de Firebase o script directo con Admin SDK — porque hasta que exista un Administrador que pueda loguearse, nadie puede usar la pantalla de la Fase 5 para crear a los demás.
+   `activo: false` es la forma de "eliminar" un usuario, igual que `allow delete: if false` en `estimaciones`: nunca hard-delete, para no perder la trazabilidad de quién capturó qué.
 
-   > ⚠️ Ojo con la seguridad de estas dos Cloud Functions: si la validación de "quien invoca ya es Administrador" tiene un bug, cualquier usuario logueado podría crearse a sí mismo como Administrador de otra empresa. Este es el punto de mayor riesgo de todo el plan — probarlo explícitamente (ver checklist de Fase 10).
+4. **Bootstrap del primer Administrador, a mano y una sola vez.** En la consola: Authentication → Users → Agregar usuario (correo + clave), copiar el `uid` que queda, y crear a mano `usuarios/{uid}` con `rol: "Administrador"`, `empresaId: "frutera-varfa"`, `fincaId: null`, `activo: true`. Hasta que exista ese Administrador nadie puede usar la pantalla de la Fase 5 para crear a los demás.
 
-**Salida:** infraestructura de autenticación lista + un Administrador real que puede loguearse. Los otros 6 Cargos todavía no tienen cuenta.
+**Salida:** autenticación habilitada, `usuarios` creada y un Administrador real que puede loguearse. Los demás Cargos todavía no tienen cuenta.
 
 ---
 
 ## Fase 4 — Reescribir el login de la app
 
-1. `authService.js`: reemplazar `validateCredentials`/`authenticateUser` (array local) por `signInWithEmailAndPassword` de Firebase Auth, leyendo `rol`/`empresaId` desde los custom claims del token (no desde `usuarios/{uid}`, para no depender de una lectura extra a Firestore en cada login). Mantener la firma de salida que ya espera `AppTomaFisica.js` (`{success, user, redirectPath}` / `{success:false, error}`).
-2. `LoginScreen.js`: cambiar el selector de "Usuario" (Cargo) por un formulario de correo + contraseña — cambio de UX visible, avisar antes de desplegar.
+1. `authService.js`: reemplazar `validateCredentials`/`authenticateUser` (array local) por `signInWithEmailAndPassword` de Firebase Auth, y después leer `rol`/`empresaId`/`fincaId` con un `getDoc` de `usuarios/{uid}`. Mantener la firma de salida que ya espera `AppTomaFisica.js` (`{success, user, redirectPath}` / `{success:false, error}`). Si la cuenta de Auth existe pero no tiene documento en `usuarios`, o lo tiene con `activo: false`, es un login fallido con mensaje propio ("Usuario inactivo"), no el genérico.
+2. `LoginScreen.js`: cambiar el selector de "Usuario" (Cargo) por un formulario de correo + contraseña — cambio de UX visible, avisar antes de desplegar. El botón ya está `disabled` sin conexión; eso se queda.
 3. `AppTomaFisica.js`: agregar `onAuthStateChanged` de Firebase Auth como fuente de verdad; `localStorage` queda solo como caché para la carga inicial offline.
-4. `ProtectedRoute.js`: verificar el claim `empresaId` del token — si no existe o la empresa está inactiva, redirigir a `/login`.
+4. `ProtectedRoute.js`: verificar que haya sesión y que el rol permita la ruta. Hoy lee `localStorage` de forma **síncrona**.
+
+   > ⚠️ **Aquí se reintroduce un bug ya resuelto si no se diseña con cuidado.** `onAuthStateChanged` es asíncrono y en el primer render devuelve `null`: sin un estado explícito de "cargando", `ProtectedRoute` va a mandar a `/login` a un usuario que sí tiene sesión. Es exactamente el bug *"`currentUser` llegaba `null` a `ProtectedRoute`"* de la tabla de bugs resueltos del historial. Tres estados, no dos: `cargando` / `autenticado` / `sin sesión`.
+
+5. **Probar el modo offline en el celular antes de desplegar.** Firebase Auth guarda la sesión en el dispositivo y en principio sigue funcionando sin red después del primer login, pero eso es un supuesto: hay que verificarlo en campo, no descubrirlo ahí.
 
 **Salida:** login real contra Firebase Auth. El Administrador bootstrapeado en la Fase 3 ya puede entrar con correo/contraseña.
 
@@ -284,9 +325,24 @@ La doble grafía de campos **no se tocó**: `empresaId` y `fincaId` se escribier
 1. **Permisos:** en `permissions.js`, poner los tres en `true` solo para `ROLES.ADMINISTRADOR`.
 2. **Ruta nueva**, protegida por `ProtectedRoute` con `allowedRoles={[ROLES.ADMINISTRADOR]}` — ej. `/admin/usuarios`. Agregar el link de acceso en `RoleHomePage.js` o en el header de Administrador.
 3. **Listado de usuarios:** lee `usuarios` filtrado por `empresaId` del Administrador logueado. Muestra Cargo, correo, Rol, estado activo/inactivo.
-4. **Formulario "Nuevo usuario":** Cargo/Nombre visible, correo, contraseña temporal, Rol (dropdown con los valores de `roles.js` — nunca texto libre, para no repetir el bug histórico de `permissions.js` con roles mal escritos), Empresa (fija a la del Administrador). Llama a la Cloud Function `crearUsuario` de la Fase 3.
-5. **Editar / desactivar usuario:** cambiar Rol o marcar `activo: false`. Llama a `actualizarUsuario`. Un usuario desactivado debe fallar el login con un mensaje claro ("Usuario inactivo"), no con el genérico "Usuario o clave incorrecta".
-6. **Gestión de `empresas`** (crear nueva empresa, activar/desactivar): puede vivir en la misma pantalla como una segunda sección, o quedar solo por consola/script mientras haya una sola empresa.
+4. **Formulario "Nuevo usuario":** Nombre visible, correo, contraseña temporal, Rol (dropdown con los valores de `roles.js` — nunca texto libre, para no repetir el bug histórico de `permissions.js` con roles mal escritos), Finca (dropdown leído de la colección `fincas`, con opción "Todas" para los roles de alcance empresa), Empresa fija a la del Administrador.
+
+   **Cómo se crea la cuenta sin Admin SDK — instancia secundaria.** `createUserWithEmailAndPassword` firma automáticamente al usuario recién creado, lo que sacaría de sesión al Administrador. Se rodea inicializando una segunda app de Firebase con la misma configuración y otro nombre; esa instancia tiene su propio estado de autenticación, así que la sesión del Administrador no se toca:
+
+   ```js
+   const secundaria = getApps().find(a => a.name === 'altaUsuarios')
+     ?? initializeApp(getApp().options, 'altaUsuarios');
+   const authSecundaria = getAuth(secundaria);
+   const cred = await createUserWithEmailAndPassword(authSecundaria, correo, claveTemporal);
+   await setDoc(doc(db, 'usuarios', cred.user.uid), { nombre, rol, empresaId, fincaId, activo: true, creadoEn: serverTimestamp() });
+   await signOut(authSecundaria);
+   ```
+
+   > ⚠️ Las dos escrituras no son atómicas. Si la cuenta de Auth se crea y el `setDoc` falla, queda una cuenta huérfana que puede loguearse y no ve nada. No es una fuga —las reglas le niegan todo sin documento espejo— pero hay que manejar el error en pantalla y dejar en la Fase 5 una vista de "cuentas sin documento" para limpiarlas.
+
+5. **Editar / desactivar usuario:** cambiar Rol, Finca o marcar `activo: false`, con un `updateDoc` directo sobre `usuarios/{uid}` — lo autoriza la regla, no código de servidor. Un usuario desactivado debe fallar el login con un mensaje claro ("Usuario inactivo"), no con el genérico "Usuario o clave incorrecta". El efecto es inmediato: las reglas leen el documento vivo.
+6. **Restablecer contraseña:** `sendPasswordResetEmail` desde el cliente. Funciona en Spark y evita que el Administrador tenga que conocer claves ajenas.
+7. **Gestión de `empresas` y `fincas`:** se quedan en la consola. Las reglas las dejan en solo lectura desde la app (ver Fase 6). Dar de alta una cuarta finca es crear un documento, y es una operación de una vez al año.
 
 **Salida:** el Administrador crea desde la app las cuentas de los otros 6 Cargos — ya no hace falta tocar la consola de Firebase para altas normales.
 
@@ -296,23 +352,71 @@ La doble grafía de campos **no se tocó**: `empresaId` y `fincaId` se escribier
 
 Desplegar recién cuando las Fases 1-5 estén probadas.
 
+Reescritas el 2026-11-14 para la ruta sin custom claims: la empresa sale de `usuarios/{uid}`, no del token.
+
 ```js
-allow read: if request.auth != null
-  && request.auth.token.empresaId == resource.data.empresaId;
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-allow create: if request.auth != null
-  && request.auth.token.empresaId == request.resource.data.empresaId
-  && request.resource.data.keys().hasAll(['empresaId','Cosecha','Tipo','Lote','Parcela']);
+    // get() dentro de reglas NO vuelve a pasar por las reglas: no hay recursión.
+    function perfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    function activo() {
+      return request.auth != null && perfil().activo == true;
+    }
+    function miEmpresa()  { return perfil().empresaId; }
+    function esAdmin()    { return activo() && perfil().rol == 'Administrador'; }
 
-allow update: if request.auth != null
-  && request.auth.token.empresaId == resource.data.empresaId;
+    match /estimaciones/{id} {
+      allow read:   if activo() && resource.data.empresaId == miEmpresa();
+      allow create: if activo()
+                    && request.resource.data.empresaId == miEmpresa()
+                    && request.resource.data.keys().hasAll(
+                         ['empresaId','fincaId','Cosecha','Tipo','Lote','Parcela']);
+      allow update: if activo()
+                    && resource.data.empresaId == miEmpresa()
+                    && request.resource.data.empresaId == resource.data.empresaId;
+      allow delete: if false;
+    }
 
-allow delete: if false;
+    match /usuarios/{uid} {
+      // cada quien lee el suyo: lo necesita el login de la Fase 4
+      allow read:   if request.auth != null && (request.auth.uid == uid || esAdmin());
+      allow create: if esAdmin() && request.resource.data.empresaId == miEmpresa();
+      allow update: if esAdmin()
+                    && resource.data.empresaId == miEmpresa()
+                    && request.resource.data.empresaId == resource.data.empresaId;
+      allow delete: if false;
+    }
+
+    match /empresas/{empresaId} {
+      allow read:  if activo() && empresaId == miEmpresa();
+      allow write: if false;            // solo consola
+    }
+
+    match /fincas/{fincaId} {
+      allow read:  if activo() && resource.data.empresaId == miEmpresa();
+      allow write: if false;            // solo consola
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
 ```
+
+Tres cosas que hacen el trabajo pesado aquí:
+
+- **`empresaId` no se puede cambiar en un `update`.** Ni en `estimaciones` ni en `usuarios`. Sin esa línea, un Administrador podría mover un registro o una persona a otra empresa, y el aislamiento deja de ser aislamiento.
+- **La finca no entra en las reglas, a propósito.** Agrupa, no aísla: meterla aquí impediría el consolidado que la planta de empaque necesita. Quien lo hace cumplir es la UI (Fase 8) y, para aprobar, `handleAprobar` (Regla 31 revisada).
+- **Una cuenta de Auth sin documento en `usuarios` no pasa de la puerta.** `perfil()` sobre un documento inexistente hace fallar la condición y todo queda denegado. Es la mitigación de tener que dejar el registro abierto (ver la decisión de Spark).
 
 > ⚠️ Los nombres de campo van en **mayúscula**, igual que hoy — ver tarea 0.1. Solo pasarlos a minúscula si antes se hizo el backfill que unifica la doble grafía.
 
-**Antes de desplegar:** confirmar que la Fase 2 (backfill) está 100% completa, y leer `firestore.rules` de vuelta desde el disco para confirmar su contenido.
+**Antes de desplegar:** confirmar que la Fase 2 (backfill) está 100% completa — ya lo está desde el 2026-11-14 — y leer `firestore.rules` de vuelta desde el disco para confirmar su contenido.
 
 **Qué resuelve:** cierra la exposición permanente de `estimaciones` a lectura y escritura sin autenticación. Ya no hay deadline externo — esta fase se hace cuando se decida, y mientras no se haga, la base queda abierta.
 
@@ -356,8 +460,14 @@ allow delete: if false;
 ## Fase 10 — Pruebas
 
 **Automatizadas** (patrón de `estfrutaAnalysisService.test.js`):
-- `crearUniqueKey()` con `empresaId` — mismos lote/parcela/cosecha en dos empresas no deben chocar.
-- Si hay emulador de Cloud Functions disponible: probar `crearUsuario`/`actualizarUsuario` con un token que NO es de Administrador → debe rechazar.
+- `crearUniqueKey()` con `empresaId` y `fincaId` — mismos lote/parcela/cosecha en dos empresas, o en dos fincas de la misma empresa, no deben chocar.
+- **Reglas, con el emulador de Firestore** (`@firebase/rules-unit-testing`). Es el reemplazo de las pruebas de Cloud Functions y ahora es el control principal:
+  - usuario de empresa A no lee documentos de empresa B;
+  - usuario con `activo: false` no lee ni escribe nada;
+  - cuenta de Auth **sin** documento en `usuarios` no lee ni escribe nada;
+  - usuario no Administrador no puede crear ni modificar documentos de `usuarios`, **ni el suyo propio** (autoescalamiento);
+  - un Administrador no puede cambiar el `empresaId` de un documento existente, ni de una estimación ni de un usuario;
+  - nadie escribe en `empresas` ni en `fincas`.
 
 **Manuales — Multiempresa (requiere 2 empresas de prueba):**
 - [ ] Login empresa A ve solo datos de empresa A en `PantallaConsultaEstFruta`
@@ -368,10 +478,11 @@ allow delete: if false;
 - [ ] Usuario sin `empresaId` válido → redirigido a login, no pantalla en blanco
 
 **Manuales — Administración de usuarios (Fase 5):**
-- [ ] Un usuario NO Administrador no ve la ruta `/admin/usuarios` ni puede invocar `crearUsuario` directamente (probar llamando la Cloud Function a mano con su token, no solo confiar en que la UI la oculta)
-- [ ] Administrador crea un Cargo nuevo → esa persona puede loguearse de inmediato
-- [ ] Administrador desactiva un usuario → login de ese usuario falla con "Usuario inactivo"
+- [ ] Un usuario NO Administrador no ve la ruta `/admin/usuarios` ni puede escribir en `usuarios` (probar el `updateDoc` a mano desde la consola del navegador con su sesión, no solo confiar en que la UI lo oculta)
+- [ ] Administrador crea un usuario nuevo → **el Administrador sigue logueado** (es lo que verifica la instancia secundaria) y esa persona puede entrar de inmediato
+- [ ] Administrador desactiva un usuario → ese usuario deja de poder leer **sin esperar a que caduque nada**, y su login falla con "Usuario inactivo"
 - [ ] Administrador de empresa A no puede crear ni ver usuarios de empresa B
+- [ ] Alguien se registra por fuera con `createUserWithEmailAndPassword` → entra pero no ve absolutamente nada
 
 **Manual — regresión del incidente de noviembre:**
 - [ ] Tras cualquier despliegue de reglas, hacer una lectura real contra la API y confirmar que responde — no asumir que el deploy funcionó
@@ -381,7 +492,7 @@ allow delete: if false;
 ## Fase 11 — Rollout
 
 1. Fases 0-2 (arreglos previos + modelo de datos + backfill) — cero impacto visible.
-2. Fase 3 (infraestructura Auth + Cloud Functions + bootstrap del primer Administrador) — todavía nada visible para el resto de usuarios.
+2. Fase 3 (habilitar Auth + `firebaseConfig.js` + colección `usuarios` + bootstrap del primer Administrador a mano) — todavía nada visible para el resto de usuarios.
 3. Fase 4 (login nuevo) — el Administrador ya puede entrar con correo/contraseña. Los demás Cargos siguen sin cuenta, así que **coordinar el corte**: considerar una ventana corta donde el Administrador crea todas las cuentas antes de anunciar el cambio al equipo.
 4. Fase 5 (pantalla de administración) — Administrador crea las 6 cuentas restantes.
 5. Validar que todos los Cargos pueden loguearse antes de seguir.
@@ -395,8 +506,9 @@ allow delete: if false;
 
 - **Cambio de UX en el login** (selector de Cargo → correo/contraseña) requiere avisar a los usuarios de campo antes del despliegue.
 - **Ventana de corte de acceso:** entre que se despliega el login nuevo (Fase 4) y el Administrador termina de crear las 6 cuentas restantes (Fase 5), esos Cargos no pueden entrar.
-- **Seguridad de las Cloud Functions de administración:** son las que más riesgo de escalamiento de privilegios introducen. La validación de "quien invoca ya es Administrador de esa empresa" tiene que probarse explícitamente.
-- **Costo de Cloud Functions:** fuera de la capa gratuita se cobra por invocación — para un puñado de usuarios no debería ser relevante.
+- **Seguridad de las reglas de `usuarios`:** es donde quedó el riesgo de escalamiento de privilegios al quitar las Cloud Functions. Son pocas líneas, pero si `allow update` no bloquea que un usuario edite su propio documento, cualquiera se asciende a Administrador. Se prueba con el emulador (Fase 10), no a ojo.
+- **El registro público queda abierto:** "Enable create (sign-up)" tiene que seguir encendido para que la pantalla de la Fase 5 funcione. Una cuenta registrada por fuera no ve nada, pero conviene revisar la lista de Users cada tanto y evaluar App Check.
+- **Alta de usuario en dos pasos no atómicos:** cuenta de Auth y documento espejo se crean por separado. Un fallo en medio deja una cuenta huérfana e inútil que hay que poder detectar y limpiar.
 - **Ventana de riesgo en la Fase 6:** si el backfill (Fase 2) no fue 100% completo, cualquier documento huérfano queda inaccesible al desplegar las reglas nuevas. Tener lista una reversión rápida.
 - **Un despliegue de reglas puede romper la app en silencio.** Es exactamente lo que pasó entre setiembre y noviembre de 2026: nadie se dio cuenta durante 68 días. Después de cada despliegue, verificar con una lectura real, y considerar un chequeo periódico que avise si Firestore deja de responder.
 - **Borradores offline en tránsito:** dispositivos con registros sin sincronizar al momento del despliegue de las Fases 7-8 pueden tener `uniqueKey` en formato viejo.
@@ -411,7 +523,7 @@ allow delete: if false;
 | 0.2 | `throw` de depuración en `requestCreateEstimation` | ✅ Cerrada — código muerto, no bloquea nada |
 | 1 | Colecciones `empresas` y `fincas` | ✅ **Cerrada el 2026-11-14** — 1 empresa + 3 fincas creadas en la consola de Firebase |
 | 2 | Backfill `empresaId` + `fincaId` en datos existentes | ✅ **Cerrada el 2026-11-14** — 26/26 documentos |
-| 3 | Firebase Auth + Custom Claims + Cloud Functions + bootstrap Administrador | Pendiente — prerequisito de Fases 4-6 |
+| 3 | Firebase Auth + colección `usuarios` + bootstrap Administrador | **Siguiente** — prerequisito de Fases 4-6 |
 | 4 | Login nuevo en la app | Pendiente — prerequisito de Fase 6 |
 | 5 | Pantalla de administración de usuarios (Sprint S6) | Pendiente — necesaria para dar de alta a los otros 6 Cargos |
 | 6 | `firestore.rules` nuevas | Pendiente — **cierra la exposición permanente** de `estimaciones` |
@@ -423,4 +535,4 @@ allow delete: if false;
 
 > 📌 **El requisito de fincas (2026-11-08) atraviesa las Fases 1, 2, 3, 4, 5, 7, 8 y 10.** No es una fase aparte y no conviene hacerlo en una segunda tanda: son los mismos archivos, las mismas queries y la misma clave de duplicados. Ver [Requisito nuevo — fincas](#fincas).
 
-Las Fases 0, 1 y 2 están cerradas (las dos últimas el 2026-11-14: `empresas` y `fincas` existen, y los 26 documentos de `estimaciones` ya llevan `empresaId` y `fincaId`). Hasta aquí el impacto en la app es cero. El siguiente paso es la **Fase 3** — Firebase Auth, custom claims y las dos Cloud Functions — que es donde empieza el trabajo de verdad y el prerequisito de todo lo que falta. Lo que justifica llegar hasta la Fase 6 es la exposición permanente descrita arriba, no una fecha límite.
+Las Fases 0, 1 y 2 están cerradas (las dos últimas el 2026-11-14: `empresas` y `fincas` existen, y los 26 documentos de `estimaciones` ya llevan `empresaId` y `fincaId`). Hasta aquí el impacto en la app es cero. El siguiente paso es la **Fase 3** — habilitar Firebase Auth, arreglar `firebaseConfig.js`, crear `usuarios` y el Administrador inicial — que es donde empieza el trabajo de verdad y el prerequisito de todo lo que falta. La fecha a la que apunta todo esto es [mediados de enero de 2027](#fecha-objetivo) — una meta de calendario, no una bomba de tiempo como la de agosto. Lo que hace que la Fase 6 sea obligatoria y no opcional sigue siendo la exposición permanente descrita arriba.
